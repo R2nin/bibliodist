@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Novo Empréstimo — BiblioDist{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <h2>Novo Empréstimo</h2>
+    <div class="card shadow-sm mt-3">
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Livro *</label>
+            <select name="livro" class="form-select" required>
+              <option value="">— selecione —</option>
+              {% for livro in livros %}
+                <option value="{{ livro.pk }}">
+                  {{ livro.titulo }} ({{ livro.autor }}) — disp: {{ livro.exemplares_disponiveis }}/{{ livro.total_exemplares }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Leitor *</label>
+            <select name="leitor" class="form-select" required>
+              <option value="">— selecione —</option>
+              {% for leitor in leitores %}
+                <option value="{{ leitor.pk }}">{{ leitor.nome }} ({{ leitor.matricula }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Data prevista de devolução *</label>
+            <input type="date" name="data_prevista" class="form-control" required>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Registrar Empréstimo</button>
+            <a href="{% url 'emprestimo_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

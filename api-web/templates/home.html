@@ -1,27 +1,21 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BiblioDist</title>
-  <style>
-    body { margin:0; font-family: Arial, "Liberation Sans", sans-serif; background:#f4f7fa; color:#1c1c1c;
-           display:flex; min-height:100vh; align-items:center; justify-content:center; }
-    .card { background:#fff; padding:48px 56px; border-radius:12px; box-shadow:0 6px 24px rgba(0,71,132,.12);
-            text-align:center; border-top:6px solid #004784; }
-    .bar { height:5px; width:90px; margin:0 auto 20px; border-radius:3px;
-           background:linear-gradient(90deg,#004784 55%,#F58220 55%); }
-    h1 { color:#004784; margin:0 0 6px; font-size:30px; }
-    p { color:#555; margin:4px 0; }
-    .tag { color:#F58220; font-weight:bold; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="bar"></div>
-    <h1>BiblioDist no ar</h1>
-    <p>Sistema de Biblioteca <span class="tag">Distribuído</span></p>
-    <p>Computação Distribuída — FEMA</p>
+{% extends "base.html" %}
+{% block title %}BiblioDist — Início{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-8 text-center">
+    <div class="card shadow border-0" style="border-top: 6px solid #004784 !important;">
+      <div class="card-body py-5">
+        <h1 class="display-5 fw-bold" style="color:#004784;">BiblioDist</h1>
+        <p class="lead text-muted">Sistema de Biblioteca <span class="bd-accent fw-bold">Distribuído</span></p>
+        <p class="text-muted">Computação Distribuída — FEMA</p>
+        <hr>
+        <div class="row g-3 mt-2">
+          <div class="col-sm-4"><a href="{% url 'livro_list' %}" class="btn btn-primary w-100">Livros</a></div>
+          <div class="col-sm-4"><a href="{% url 'leitor_list' %}" class="btn btn-primary w-100">Leitores</a></div>
+          <div class="col-sm-4"><a href="{% url 'emprestimo_list' %}" class="btn btn-warning w-100 text-white">Empréstimos</a></div>
+        </div>
+      </div>
+    </div>
   </div>
-</body>
-</html>
+</div>
+{% endblock %}

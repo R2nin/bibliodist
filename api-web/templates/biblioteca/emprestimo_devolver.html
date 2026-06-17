@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Registrar Devolução — BiblioDist{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <h2>Registrar Devolução</h2>
+    <div class="card shadow-sm mt-3">
+      <div class="card-body">
+        <dl class="row">
+          <dt class="col-sm-4">Livro</dt>
+          <dd class="col-sm-8">{{ emp.livro.titulo }}</dd>
+          <dt class="col-sm-4">Leitor</dt>
+          <dd class="col-sm-8">{{ emp.leitor.nome }}</dd>
+          <dt class="col-sm-4">Data Empréstimo</dt>
+          <dd class="col-sm-8">{{ emp.data_emprestimo|date:"d/m/Y" }}</dd>
+          <dt class="col-sm-4">Prev. Devolução</dt>
+          <dd class="col-sm-8">{{ emp.data_prevista|date:"d/m/Y" }}</dd>
+        </dl>
+        <hr>
+        <p>Confirma a devolução do livro <strong>"{{ emp.livro.titulo }}"</strong> hoje?</p>
+        <form method="post" class="d-flex gap-2">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-warning text-white">Confirmar Devolução</button>
+          <a href="{% url 'emprestimo_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

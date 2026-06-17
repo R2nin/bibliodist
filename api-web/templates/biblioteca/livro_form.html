@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo_pag }} — BiblioDist{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <h2>{{ titulo_pag }}</h2>
+    <div class="card shadow-sm mt-3">
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Título *</label>
+            <input type="text" name="titulo" class="form-control" value="{{ obj.titulo|default:'' }}" required autofocus>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">ISBN *</label>
+              <input type="text" name="isbn" class="form-control" value="{{ obj.isbn|default:'' }}" required>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label">Ano *</label>
+              <input type="number" name="ano" class="form-control" value="{{ obj.ano|default:'' }}" min="1000" max="2099" required>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label">Exemplares</label>
+              <input type="number" name="total_exemplares" class="form-control" value="{{ obj.total_exemplares|default:'1' }}" min="1">
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Autor *</label>
+              <select name="autor" class="form-select" required>
+                <option value="">— selecione —</option>
+                {% for a in autores %}
+                  <option value="{{ a.pk }}" {% if obj and obj.autor_id == a.pk %}selected{% endif %}>{{ a.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Categoria *</label>
+              <select name="categoria" class="form-select" required>
+                <option value="">— selecione —</option>
+                {% for c in categorias %}
+                  <option value="{{ c.pk }}" {% if obj and obj.categoria_id == c.pk %}selected{% endif %}>{{ c.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+            <a href="{% url 'livro_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
