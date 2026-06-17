@@ -263,7 +263,14 @@ def leitor_delete(request, pk):
 
 # ─── Empréstimos ─────────────────────────────────────────────────────────────
 
+def _atualizar_atrasos():
+    """Marca como 'atrasado' todo empréstimo ativo cuja data prevista já passou."""
+    hoje = timezone.now().date()
+    Emprestimo.objects.filter(status="ativo", data_prevista__lt=hoje).update(status="atrasado")
+
+
 def emprestimo_list(request):
+    _atualizar_atrasos()
     qs = Emprestimo.objects.select_related("livro", "leitor")
     status_filtro = request.GET.get("status", "")
     if status_filtro:
@@ -277,6 +284,7 @@ def emprestimo_list(request):
 
 
 def emprestimo_create(request):
+    _atualizar_atrasos()
     livros = Livro.objects.select_related("autor").order_by("titulo")
     leitores = Leitor.objects.order_by("nome")
     if request.method == "POST":
