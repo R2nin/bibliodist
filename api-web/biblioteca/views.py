@@ -309,6 +309,7 @@ def emprestimo_create(request):
             })
 
         # ── Verifica disponibilidade via gRPC ─────────────────────────────
+        grpc_offline = False
         try:
             disp = grpc_client.verificar_disponibilidade(int(livro_id))
             if not disp["disponivel"]:
@@ -320,9 +321,8 @@ def emprestimo_create(request):
                     "livros": livros,
                     "leitores": leitores,
                 })
-        except ConnectionError as exc:
-            # gRPC offline: fallback para validação local
-            messages.warning(request, f"Serviço gRPC indisponível ({exc}). Verificando localmente.")
+        except ConnectionError:
+            grpc_offline = True
             livro = get_object_or_404(Livro, pk=livro_id)
             if livro.exemplares_disponiveis <= 0:
                 messages.error(request, f'Não há exemplares disponíveis de "{livro.titulo}".')
@@ -331,21 +331,8 @@ def emprestimo_create(request):
                     "leitores": leitores,
                 })
 
-        # ── Registra o empréstimo via gRPC ────────────────────────────────
-        try:
-            resultado = grpc_client.registrar_emprestimo(
-                livro_id=int(livro_id),
-                leitor_id=int(leitor_id),
-                data_prevista=data_prevista,
-            )
-            if resultado["sucesso"]:
-                messages.success(request, resultado["mensagem"])
-                return redirect("emprestimo_list")
-            else:
-                messages.error(request, f'[gRPC] {resultado["mensagem"]}')
-        except ConnectionError as exc:
-            # gRPC offline: fallback para criação local
-            messages.warning(request, f"Serviço gRPC indisponível ({exc}). Registrando localmente.")
+        # ── Registra o empréstimo via gRPC (ou localmente se offline) ─────
+        if grpc_offline:
             livro = get_object_or_404(Livro, pk=livro_id)
             emp = Emprestimo.objects.create(
                 livro=livro,
@@ -359,8 +346,26 @@ def emprestimo_create(request):
                 tipo="emprestimo",
                 mensagem=f'Empréstimo do livro "{livro.titulo}" realizado. Devolver até {data_prevista}.',
             )
-            messages.success(request, "Empréstimo registrado com sucesso (modo local).")
+            messages.success(request, f"Empréstimo #{emp.pk} registrado com sucesso (serviço gRPC indisponível, modo local).")
             return redirect("emprestimo_list")
+
+        try:
+            resultado = grpc_client.registrar_emprestimo(
+                livro_id=int(livro_id),
+                leitor_id=int(leitor_id),
+                data_prevista=data_prevista,
+            )
+            if resultado["sucesso"]:
+                messages.success(request, resultado["mensagem"])
+            else:
+                messages.error(request, f'[gRPC] {resultado["mensagem"]}')
+        except ConnectionError:
+            messages.error(request, "Serviço gRPC ficou indisponível durante o registro. Tente novamente.")
+            return render(request, "biblioteca/emprestimo_form.html", {
+                "livros": livros,
+                "leitores": leitores,
+            })
+        return redirect("emprestimo_list")
 
     return render(request, "biblioteca/emprestimo_form.html", {
         "livros": livros,
