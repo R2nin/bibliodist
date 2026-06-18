@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package biblioteca;
+
+// ─── Serviço principal ───────────────────────────────────────────────────────
+
+service BibliotecaService {
+  // Verifica quantos exemplares de um livro estão disponíveis para empréstimo
+  rpc VerificarDisponibilidade(VerificarRequest) returns (DisponibilidadeResponse);
+
+  // Registra um novo empréstimo no banco de dados
+  rpc RegistrarEmprestimo(EmprestimoRequest) returns (EmprestimoResponse);
+}
+
+// ─── Mensagens ───────────────────────────────────────────────────────────────
+
+message VerificarRequest {
+  int32 livro_id = 1;
+}
+
+message DisponibilidadeResponse {
+  bool disponivel = 1;
+  int32 exemplares_disponiveis = 2;
+  string titulo = 3;
+}
+
+message EmprestimoRequest {
+  int32 livro_id = 1;
+  int32 leitor_id = 2;
+  string data_prevista = 3;  // formato ISO: YYYY-MM-DD
+}
+
+message EmprestimoResponse {
+  bool sucesso = 1;
+  int32 emprestimo_id = 2;
+  string mensagem = 3;
+}

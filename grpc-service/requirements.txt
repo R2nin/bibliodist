@@ -1,0 +1,4 @@
+grpcio>=1.60
+grpcio-tools>=1.60
+Django>=5.0,<5.1
+python-dotenv>=1.0
