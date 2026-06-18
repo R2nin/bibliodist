@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from .models import Autor, Categoria, Emprestimo, Leitor, Livro, Notificacao
 from . import grpc_client
+from . import mq_publisher
 
 
 # ─── Home ────────────────────────────────────────────────────────────────────
@@ -340,11 +341,11 @@ def emprestimo_create(request):
                 data_prevista=data_prevista,
                 status="ativo",
             )
-            Notificacao.objects.create(
-                leitor_id=leitor_id,
-                emprestimo=emp,
-                tipo="emprestimo",
-                mensagem=f'Empréstimo do livro "{livro.titulo}" realizado. Devolver até {data_prevista}.',
+            mq_publisher.publicar_emprestimo(
+                emprestimo_id=emp.pk,
+                livro_titulo=livro.titulo,
+                leitor_id=int(leitor_id),
+                data_prevista=data_prevista,
             )
             messages.success(request, f"Empréstimo #{emp.pk} registrado com sucesso (serviço gRPC indisponível, modo local).")
             return redirect("emprestimo_list")
@@ -383,11 +384,11 @@ def emprestimo_devolver(request, pk):
         emp.data_devolucao = hoje
         emp.status = "devolvido"
         emp.save()
-        Notificacao.objects.create(
-            leitor=emp.leitor,
-            emprestimo=emp,
-            tipo="devolucao",
-            mensagem=f'Livro "{emp.livro.titulo}" devolvido em {hoje.strftime("%d/%m/%Y")}.',
+        mq_publisher.publicar_devolucao(
+            emprestimo_id=emp.pk,
+            livro_titulo=emp.livro.titulo,
+            leitor_id=emp.leitor.pk,
+            data_devolucao=hoje.strftime("%d/%m/%Y"),
         )
         messages.success(request, "Devolução registrada com sucesso.")
         return redirect("emprestimo_list")

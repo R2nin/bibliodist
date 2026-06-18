@@ -6,9 +6,10 @@ Uso:
     python server.py
 
 Variáveis de ambiente (opcionais):
-    GRPC_PORT   porta do servidor (padrão: 50051)
+    GRPC_PORT       porta do servidor (padrão: 50051)
+    RABBITMQ_URL    padrão: amqp://guest:guest@localhost:5672/
     DJANGO_SETTINGS_MODULE (padrão: config.settings)
-    DATABASE_URL (lido pelo settings.py do api-web)
+    DATABASE_URL    (lido pelo settings.py do api-web)
 """
 
 import os
@@ -27,8 +28,8 @@ django.setup()
 
 # ─── Imports pós-setup ───────────────────────────────────────────────────────
 import grpc
-from django.utils import timezone
-from biblioteca.models import Emprestimo, Livro, Leitor, Notificacao
+from biblioteca.models import Emprestimo, Livro, Leitor
+from biblioteca import mq_publisher
 
 import biblioteca_pb2
 import biblioteca_pb2_grpc
@@ -83,14 +84,11 @@ class BibliotecaServicer(biblioteca_pb2_grpc.BibliotecaServiceServicer):
             data_prevista=request.data_prevista,
             status="ativo",
         )
-        Notificacao.objects.create(
-            leitor=leitor,
-            emprestimo=emp,
-            tipo="emprestimo",
-            mensagem=(
-                f'[gRPC] Empréstimo do livro "{livro.titulo}" realizado. '
-                f"Devolver até {request.data_prevista}."
-            ),
+        mq_publisher.publicar_emprestimo(
+            emprestimo_id=emp.pk,
+            livro_titulo=livro.titulo,
+            leitor_id=leitor.pk,
+            data_prevista=request.data_prevista,
         )
 
         return biblioteca_pb2.EmprestimoResponse(
