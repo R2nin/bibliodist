@@ -1,0 +1,98 @@
+services:
+
+  # ── Banco de dados ────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bibliodist
+      POSTGRES_USER: bibliodist
+      POSTGRES_PASSWORD: bibliodist
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bibliodist"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Mensageria ────────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports:
+      - "15672:15672"   # painel de gerenciamento: http://localhost:15672 (guest/guest)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── Migração (roda uma vez e sai) ─────────────────────────────────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: api-web/Dockerfile
+    command: python manage.py migrate --noinput
+    environment:
+      DATABASE_URL: postgresql://bibliodist:bibliodist@db:5432/bibliodist
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  # ── Django (HTTP) ─────────────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: api-web/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://bibliodist:bibliodist@db:5432/bibliodist
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      GRPC_HOST: grpc
+      GRPC_PORT: "50051"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,web"
+      DEBUG: "True"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # ── Servidor gRPC ─────────────────────────────────────────────────────────────
+  grpc:
+    build:
+      context: .
+      dockerfile: grpc-service/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://bibliodist:bibliodist@db:5432/bibliodist
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      GRPC_PORT: "50051"
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # ── Worker RabbitMQ ───────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://bibliodist:bibliodist@db:5432/bibliodist
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pg_data:
