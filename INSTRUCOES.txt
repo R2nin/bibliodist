@@ -1,0 +1,84 @@
+========================================================
+  BiblioDist — Sistema de Gerenciamento de Biblioteca
+  Disciplina: Sistemas Distribuídos — Prof. Almir — FEMA
+  Aluno: Arthur Naoto Miura — RA 2311600029
+========================================================
+
+REPOSITÓRIO
+-----------
+https://github.com/R2nin/bibliodist
+
+
+PRÉ-REQUISITO
+-------------
+Docker Desktop instalado e rodando.
+Download: https://www.docker.com/products/docker-desktop
+
+
+COMO EXECUTAR
+-------------
+
+1. Clonar o repositório:
+
+   git clone https://github.com/R2nin/bibliodist.git
+   cd bibliodist
+
+2. Subir todos os containers:
+
+   docker compose up --build
+
+   Aguardar as seguintes mensagens aparecerem nos logs:
+     - "database system is ready to accept connections"  (PostgreSQL pronto)
+     - "Apply all migrations: ... OK"                    (banco configurado)
+     - "Server startup complete"                         (RabbitMQ pronto)
+     - "Booting worker with pid"                         (Django/Gunicorn pronto)
+     - "Worker conectado. Aguardando mensagens"          (Worker RabbitMQ pronto)
+
+3. Popular o banco com dados de teste (somente no primeiro uso):
+
+   docker compose exec web python manage.py seed
+
+4. Acessar o sistema:
+
+   Aplicação web:  http://localhost:8000
+   Admin Django:   http://localhost:8000/admin
+   RabbitMQ UI:    http://localhost:15672  (usuário: guest / senha: guest)
+
+
+ENCERRANDO O SISTEMA
+--------------------
+
+   docker compose down
+
+
+ARQUIVOS DO PROJETO
+-------------------
+
+  relatorio/relatorio.pdf   -- Relatório acadêmico completo com screenshots
+  relatorio/relatorio.md    -- Relatório em Markdown
+  docker-compose.yml        -- Orquestração dos containers
+  api-web/                  -- Aplicação Django (HTTP)
+  grpc-service/             -- Servidor gRPC
+  worker/                   -- Worker RabbitMQ
+  proto/                    -- Definição do contrato gRPC (.proto)
+
+
+ARQUITETURA RESUMIDA
+--------------------
+
+  Browser
+     |
+     | HTTP (porta 8000)
+     v
+  Django (api-web)  -->  gRPC (porta 50051)  -->  grpc-service
+         |                                              |
+         |                                              | AMQP
+         +---------------------------------------------> RabbitMQ
+                                                        |
+                                                        v
+                                                      worker
+                                                        |
+                                                        v
+                                                   PostgreSQL
+
+========================================================
