@@ -113,6 +113,7 @@ class Command(BaseCommand):
                     'tombo_inicial': parsed['tombo_inicial'],
                     'classificacao_cdd': parsed['cdd'],
                     'data_aquisicao': parsed['data_aquisicao'],
+                    'chapa': reg.get('CHAPA', '').strip() or None,
                     'total_exemplares': 0,
                 }
             livros[key]['total_exemplares'] += 1
@@ -147,6 +148,7 @@ class Command(BaseCommand):
                 tombo_inicial=info['tombo_inicial'],
                 classificacao_cdd=info['classificacao_cdd'],
                 data_aquisicao=info['data_aquisicao'],
+                chapa=info['chapa'],
                 total_exemplares=info['total_exemplares'],
             ))
 
