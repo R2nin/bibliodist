@@ -25,9 +25,9 @@
         {% for livro in page_obj %}
         <tr>
           <td>{{ livro.titulo }}</td>
-          <td>{{ livro.autor }}</td>
-          <td>{{ livro.categoria }}</td>
-          <td>{{ livro.ano }}</td>
+          <td>{{ livro.autor|default:"—" }}</td>
+          <td>{{ livro.categoria|default:livro.classificacao_cdd|default:"—" }}</td>
+          <td>{{ livro.ano|default:"—" }}</td>
           <td>{{ livro.total_exemplares }}</td>
           <td>
             {% with disp=livro.exemplares_disponiveis %}

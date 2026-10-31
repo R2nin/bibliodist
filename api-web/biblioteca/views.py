@@ -130,18 +130,8 @@ def livro_create(request):
 
         if not titulo:
             erros.append("Título é obrigatório.")
-        if not isbn:
-            erros.append("ISBN é obrigatório.")
-        if not ano or not ano.isdigit():
-            erros.append("Ano inválido.")
-        if not autor_id:
-            erros.append("Autor é obrigatório.")
-        if not categoria_id:
-            erros.append("Categoria é obrigatória.")
-
-        if not erros:
-            if Livro.objects.filter(isbn=isbn).exists():
-                erros.append("Já existe um livro com este ISBN.")
+        if isbn and Livro.objects.filter(isbn=isbn).exists():
+            erros.append("Já existe um livro com este ISBN.")
 
         if erros:
             for e in erros:
@@ -149,10 +139,10 @@ def livro_create(request):
         else:
             Livro.objects.create(
                 titulo=titulo,
-                isbn=isbn,
-                ano=int(ano),
-                autor_id=autor_id,
-                categoria_id=categoria_id,
+                isbn=isbn or None,
+                ano=int(ano) if ano.isdigit() else None,
+                autor_id=autor_id or None,
+                categoria_id=categoria_id or None,
                 total_exemplares=int(total) if total.isdigit() else 1,
             )
             messages.success(request, "Livro criado com sucesso.")
