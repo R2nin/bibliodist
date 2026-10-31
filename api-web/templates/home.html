@@ -1,21 +1,138 @@
 {% extends "base.html" %}
 {% block title %}BiblioDist — Início{% endblock %}
 {% block content %}
-<div class="row justify-content-center mt-5">
-  <div class="col-md-8 text-center">
-    <div class="card shadow border-0" style="border-top: 6px solid #004784 !important;">
-      <div class="card-body py-5">
-        <h1 class="display-5 fw-bold" style="color:#004784;">BiblioDist</h1>
-        <p class="lead text-muted">Sistema de Biblioteca <span class="bd-accent fw-bold">Distribuído</span></p>
-        <p class="text-muted">Computação Distribuída — FEMA</p>
-        <hr>
-        <div class="row g-3 mt-2">
-          <div class="col-sm-4"><a href="{% url 'livro_list' %}" class="btn btn-primary w-100">Livros</a></div>
-          <div class="col-sm-4"><a href="{% url 'leitor_list' %}" class="btn btn-primary w-100">Leitores</a></div>
-          <div class="col-sm-4"><a href="{% url 'emprestimo_list' %}" class="btn btn-warning w-100 text-white">Empréstimos</a></div>
+
+<!-- Hero -->
+<div class="rounded-4 p-4 p-md-5 mb-4 text-white"
+     style="background: linear-gradient(135deg, #004784 0%, #003366 100%); box-shadow: 0 4px 20px rgba(0,71,132,.3);">
+  <div class="d-flex align-items-center gap-3 mb-2">
+    <div style="background:rgba(255,255,255,.15);border-radius:12px;padding:.6rem .9rem;font-size:1.8rem;">
+      <i class="bi bi-book-half"></i>
+    </div>
+    <div>
+      <h1 class="fw-bold mb-0" style="font-size:1.9rem;">BiblioDist</h1>
+      <p class="mb-0 opacity-75" style="font-size:.95rem;">Sistema de Biblioteca Distribuído &mdash; FEMA</p>
+    </div>
+  </div>
+  <p class="mt-3 mb-0 opacity-85" style="max-width:540px;font-size:.92rem;">
+    Gerenciamento do acervo bibliográfico com gRPC, RabbitMQ e Docker.
+    Disciplina de Sistemas Distribuídos.
+  </p>
+</div>
+
+<!-- Stats -->
+<div class="row g-3 mb-4">
+
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="rounded-3 p-2" style="background:#e8f0fb;color:#004784;font-size:1.5rem;">
+          <i class="bi bi-journals"></i>
+        </div>
+        <div>
+          <div class="fw-bold fs-4 lh-1" style="color:#004784;">{{ total_livros|default:"0" }}</div>
+          <div class="text-muted small">Títulos</div>
         </div>
       </div>
     </div>
   </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="rounded-3 p-2" style="background:#fff3e6;color:#F58220;font-size:1.5rem;">
+          <i class="bi bi-collection"></i>
+        </div>
+        <div>
+          <div class="fw-bold fs-4 lh-1" style="color:#F58220;">{{ total_exemplares|default:"0" }}</div>
+          <div class="text-muted small">Exemplares</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="rounded-3 p-2" style="background:#e6f4ea;color:#198754;font-size:1.5rem;">
+          <i class="bi bi-people"></i>
+        </div>
+        <div>
+          <div class="fw-bold fs-4 lh-1 text-success">{{ total_leitores|default:"0" }}</div>
+          <div class="text-muted small">Leitores</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="rounded-3 p-2" style="background:{% if emprestimos_atrasados %}#fdecea{% else %}#fef9e7{% endif %};color:{% if emprestimos_atrasados %}#dc3545{% else %}#856404{% endif %};font-size:1.5rem;">
+          <i class="bi bi-arrow-left-right"></i>
+        </div>
+        <div>
+          <div class="fw-bold fs-4 lh-1 {% if emprestimos_atrasados %}text-danger{% else %}text-warning{% endif %}">
+            {{ emprestimos_ativos|default:"0" }}
+          </div>
+          <div class="text-muted small">
+            Empréstimos ativos
+            {% if emprestimos_atrasados %}
+              <span class="badge bg-danger ms-1">{{ emprestimos_atrasados }} atrasado{{ emprestimos_atrasados|pluralize:"s" }}</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
+
+<!-- Ações rápidas -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header" style="background:var(--fema-blue);color:#fff;border-radius:10px 10px 0 0;">
+    <span class="fema-marker text-white">Acesso Rápido</span>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-6 col-md-4 col-lg-2">
+        <a href="{% url 'livro_list' %}" class="btn btn-outline-primary w-100 py-3 d-flex flex-column align-items-center gap-1">
+          <i class="bi bi-journals fs-4"></i>
+          <span class="small fw-semibold">Livros</span>
+        </a>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <a href="{% url 'emprestimo_list' %}" class="btn w-100 py-3 d-flex flex-column align-items-center gap-1 text-white" style="background:var(--fema-orange);border-color:var(--fema-orange);">
+          <i class="bi bi-arrow-left-right fs-4"></i>
+          <span class="small fw-semibold">Empréstimos</span>
+        </a>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <a href="{% url 'leitor_list' %}" class="btn btn-outline-success w-100 py-3 d-flex flex-column align-items-center gap-1">
+          <i class="bi bi-people fs-4"></i>
+          <span class="small fw-semibold">Leitores</span>
+        </a>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <a href="{% url 'autor_list' %}" class="btn btn-outline-secondary w-100 py-3 d-flex flex-column align-items-center gap-1">
+          <i class="bi bi-person-lines-fill fs-4"></i>
+          <span class="small fw-semibold">Autores</span>
+        </a>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <a href="{% url 'categoria_list' %}" class="btn btn-outline-secondary w-100 py-3 d-flex flex-column align-items-center gap-1">
+          <i class="bi bi-tags fs-4"></i>
+          <span class="small fw-semibold">Categorias</span>
+        </a>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <a href="/admin/" target="_blank" class="btn btn-outline-dark w-100 py-3 d-flex flex-column align-items-center gap-1">
+          <i class="bi bi-gear fs-4"></i>
+          <span class="small fw-semibold">Admin</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}

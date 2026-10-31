@@ -11,7 +11,15 @@ from . import mq_publisher
 # ─── Home ────────────────────────────────────────────────────────────────────
 
 def home(request):
-    return render(request, "home.html")
+    from .models import Livro, Leitor, Emprestimo
+    ctx = {
+        "total_livros": Livro.objects.count(),
+        "total_exemplares": sum(Livro.objects.values_list("total_exemplares", flat=True)),
+        "total_leitores": Leitor.objects.count(),
+        "emprestimos_ativos": Emprestimo.objects.filter(status="ativo").count(),
+        "emprestimos_atrasados": Emprestimo.objects.filter(status="atrasado").count(),
+    }
+    return render(request, "home.html", ctx)
 
 
 # ─── Autores ─────────────────────────────────────────────────────────────────
@@ -108,12 +116,42 @@ def categoria_delete(request, pk):
 
 def livro_list(request):
     q = request.GET.get("q", "").strip()
+    sort = request.GET.get("sort", "titulo")
+    direcao = request.GET.get("dir", "asc")
+
+    CAMPOS_VALIDOS = {
+        "titulo", "chapa", "data_aquisicao", "tombo_inicial",
+        "tombo_exemplar", "classificacao_cdd", "total_exemplares",
+    }
+    if sort not in CAMPOS_VALIDOS:
+        sort = "titulo"
+    if direcao not in ("asc", "desc"):
+        direcao = "asc"
+
+    order_field = f"-{sort}" if direcao == "desc" else sort
+
     qs = Livro.objects.select_related("autor", "categoria")
     if q:
-        qs = qs.filter(titulo__icontains=q)
+        qs = qs.filter(
+            titulo__icontains=q
+        ) | qs.filter(
+            chapa__icontains=q
+        ) | qs.filter(
+            tombo_inicial__icontains=q
+        ) | qs.filter(
+            tombo_exemplar__icontains=q
+        )
+        qs = qs.distinct()
+    qs = qs.order_by(order_field)
+
     paginator = Paginator(qs, 10)
     page = paginator.get_page(request.GET.get("page"))
-    return render(request, "biblioteca/livro_list.html", {"page_obj": page, "q": q})
+    return render(request, "biblioteca/livro_list.html", {
+        "page_obj": page,
+        "q": q,
+        "sort": sort,
+        "dir": direcao,
+    })
 
 
 def livro_create(request):

@@ -34,6 +34,7 @@ def _parse(registro):
         return {
             'titulo': m.group(3).strip(),
             'tombo_inicial': m.group(1).strip(),
+            'tombo_exemplar': m.group(2).strip(),
             'cdd': None,
             'data_aquisicao': data_aq,
             'key': f'T_{m.group(1).strip()}',
@@ -42,10 +43,11 @@ def _parse(registro):
     m = P_NOVO.search(desc)
     if m:
         titulo = m.group(1).strip()
-        tombo = m.group(3).strip().replace('.', '')  # ex: "35.749" → "35749"
+        tombo = m.group(3).strip().replace('.', '')
         return {
             'titulo': titulo,
             'tombo_inicial': tombo,
+            'tombo_exemplar': tombo,
             'cdd': m.group(2).strip(),
             'data_aquisicao': data_aq,
             'key': f'N_{titulo.upper()}',
@@ -57,6 +59,7 @@ def _parse(registro):
         return {
             'titulo': titulo,
             'tombo_inicial': None,
+            'tombo_exemplar': None,
             'cdd': None,
             'data_aquisicao': data_aq,
             'key': f'S_{titulo.upper()}',
@@ -111,6 +114,7 @@ class Command(BaseCommand):
                 livros[key] = {
                     'titulo': parsed['titulo'],
                     'tombo_inicial': parsed['tombo_inicial'],
+                    'tombo_exemplar': parsed.get('tombo_exemplar'),
                     'classificacao_cdd': parsed['cdd'],
                     'data_aquisicao': parsed['data_aquisicao'],
                     'chapa': reg.get('CHAPA', '').strip() or None,
@@ -146,6 +150,7 @@ class Command(BaseCommand):
             novos.append(Livro(
                 titulo=info['titulo'][:500],
                 tombo_inicial=info['tombo_inicial'],
+                tombo_exemplar=info['tombo_exemplar'],
                 classificacao_cdd=info['classificacao_cdd'],
                 data_aquisicao=info['data_aquisicao'],
                 chapa=info['chapa'],

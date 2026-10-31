@@ -34,6 +34,7 @@ class Livro(models.Model):
     categoria = models.ForeignKey(Categoria, on_delete=models.SET_NULL, null=True, blank=True, related_name="livros")
     total_exemplares = models.PositiveIntegerField(default=1)
     tombo_inicial = models.CharField(max_length=20, null=True, blank=True, db_index=True)
+    tombo_exemplar = models.CharField(max_length=20, null=True, blank=True)
     classificacao_cdd = models.CharField(max_length=30, null=True, blank=True)
     data_aquisicao = models.DateField(null=True, blank=True)
     chapa = models.CharField(max_length=20, null=True, blank=True)
