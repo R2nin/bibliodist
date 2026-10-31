@@ -42,9 +42,10 @@ def _parse(registro):
     m = P_NOVO.search(desc)
     if m:
         titulo = m.group(1).strip()
+        tombo = m.group(3).strip().replace('.', '')  # ex: "35.749" → "35749"
         return {
             'titulo': titulo,
-            'tombo_inicial': None,
+            'tombo_inicial': tombo,
             'cdd': m.group(2).strip(),
             'data_aquisicao': data_aq,
             'key': f'N_{titulo.upper()}',

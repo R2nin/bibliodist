@@ -17,17 +17,24 @@
     <table class="table table-hover mb-0">
       <thead>
         <tr>
-          <th>Título</th><th>Autor</th><th>Categoria</th><th>Ano</th>
-          <th>Total</th><th>Disponíveis</th><th style="width:150px;">Ações</th>
+          <th style="min-width:220px;">Título</th>
+          <th>Autor</th>
+          <th>Categoria</th>
+          <th>Tombo (T:)</th>
+          <th>CDD (C:)</th>
+          <th>Total</th>
+          <th>Disponíveis</th>
+          <th style="width:130px;">Ações</th>
         </tr>
       </thead>
       <tbody>
         {% for livro in page_obj %}
         <tr>
-          <td>{{ livro.titulo }}</td>
+          <td style="white-space:normal;word-break:break-word;max-width:320px;">{{ livro.titulo }}</td>
           <td>{{ livro.autor|default:"—" }}</td>
-          <td>{{ livro.categoria|default:livro.classificacao_cdd|default:"—" }}</td>
-          <td>{{ livro.ano|default:"—" }}</td>
+          <td>{{ livro.categoria|default:"—" }}</td>
+          <td class="text-nowrap">{{ livro.tombo_inicial|default:"—" }}</td>
+          <td class="text-nowrap">{{ livro.classificacao_cdd|default:"—" }}</td>
           <td>{{ livro.total_exemplares }}</td>
           <td>
             {% with disp=livro.exemplares_disponiveis %}
@@ -40,7 +47,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center text-muted py-4">Nenhum livro encontrado.</td></tr>
+        <tr><td colspan="9" class="text-center text-muted py-4">Nenhum livro encontrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>
