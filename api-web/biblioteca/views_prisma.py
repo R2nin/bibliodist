@@ -46,10 +46,14 @@ def prisma_busca(request):
     if primeira_visita:
         crit.exigir_pdf = True          # padrão do formulário
 
+    try:
+        cursos = sorted(acervo_fema.listar_cursos())
+    except Exception:
+        cursos = sorted(acervo_fema.CURSOS_FALLBACK)
+
     ctx = {
         "crit": crit,
-        "cursos": acervo_fema.listar_cursos(),
-        "tipos": acervo_fema.listar_tipos(),
+        "cursos": cursos,
         "exemplos": EXEMPLOS,
         "ano_atual": date.today().year,
         "pagina_publica": acervo_fema.PAGINA_PUBLICA,

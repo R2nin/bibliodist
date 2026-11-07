@@ -46,8 +46,8 @@ HEADERS = {
 
 # Usados se a API de listas estiver fora do ar
 CURSOS_FALLBACK = [
-    "TODOS", "ADM", "ADS", "ARQ", "BCC", "CONT", "DIR",
-    "EDF", "ENF", "ENG", "FIS", "MED", "PUB", "QUIM", "TA",
+    "ADM", "ADS", "ARQ", "BCC", "CONT", "DIR",
+    "EDF", "ENF", "ENG", "FIS", "MED", "PUB", "QUIM", "TA", "TODOS",
 ]
 TIPOS_FALLBACK = ["TCC", "PIBIC", "PIBITI", "PIC", "LIVRO", "MANUAIS", "NORMAS TÉCNICAS", "TODOS"]
 
