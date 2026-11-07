@@ -60,12 +60,7 @@
         </div>
       </div>
 
-      <div class="col-6 col-md-2">
-        <label class="form-label fw-semibold">Tipo</label>
-        <select name="tipo" class="form-select">
-          {% for t in tipos %}<option value="{{ t }}" {% if t == crit.tipo %}selected{% endif %}>{{ t }}</option>{% endfor %}
-        </select>
-      </div>
+      <input type="hidden" name="tipo" value="TCC">
       <div class="col-6 col-md-2">
         <label class="form-label fw-semibold">Curso</label>
         <select name="curso" class="form-select">
