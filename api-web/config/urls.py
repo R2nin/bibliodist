@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 
-from biblioteca import views
+from biblioteca import views, views_prisma
 
 urlpatterns = [
     path("", views.home, name="home"),
@@ -35,4 +35,8 @@ urlpatterns = [
     path("emprestimos/", views.emprestimo_list, name="emprestimo_list"),
     path("emprestimos/novo/", views.emprestimo_create, name="emprestimo_create"),
     path("emprestimos/<int:pk>/devolver/", views.emprestimo_devolver, name="emprestimo_devolver"),
+
+    # Revisão sistemática PRISMA sobre o Acervo Digital da FEMA
+    path("prisma/", views_prisma.prisma_busca, name="prisma_busca"),
+    path("prisma/exportar.csv", views_prisma.prisma_exportar_csv, name="prisma_exportar_csv"),
 ]

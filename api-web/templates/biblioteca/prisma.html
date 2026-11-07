@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+{% block title %}Revisão PRISMA — BiblioDist{% endblock %}
+
+{% block content %}
+<style>
+  .prisma-flow { display: grid; grid-template-columns: 150px 1fr 1fr; gap: .6rem 1rem; align-items: stretch; }
+  .prisma-fase {
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    background: var(--fema-blue); color: #fff; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase;
+    width: 34px; justify-self: end;
+  }
+  .prisma-box {
+    background: #fff; border: 2px solid var(--fema-blue); border-radius: 8px;
+    padding: .65rem .9rem; font-size: .88rem; position: relative;
+  }
+  .prisma-box .n { font-size: 1.35rem; font-weight: 700; color: var(--fema-blue); }
+  .prisma-box.excl { border-color: var(--fema-orange); background: #fff8f1; }
+  .prisma-box.excl .n { color: var(--fema-orange); }
+  .prisma-box.incl { background: var(--fema-blue); color: #fff; }
+  .prisma-box.incl .n { color: #fff; }
+  .prisma-box:not(.excl):not(.last)::after {
+    content: '▼'; position: absolute; left: 50%; bottom: -1.05rem;
+    transform: translateX(-50%); color: var(--fema-blue); font-size: .75rem;
+  }
+  .resumo { font-size: .82rem; color: #495057; }
+  .kw-badge { background: rgba(0,71,132,.08); color: var(--fema-blue); font-weight: 500; }
+  code.expr { background: #eef3f8; color: var(--fema-blue2); padding: .1rem .35rem; border-radius: 4px; }
+</style>
+
+<div class="page-header">
+  <h2 class="fema-marker">Revisão Sistemática — PRISMA 2020</h2>
+  <a href="{{ pagina_publica }}" target="_blank" class="btn btn-outline-primary btn-sm">
+    <i class="bi bi-box-arrow-up-right me-1"></i>Acervo Digital FEMA
+  </a>
+</div>
+
+<p class="text-muted small mb-3">
+  Pesquisa os Trabalhos de Conclusão de Curso do <strong>Acervo Digital da Biblioteca da FEMA</strong>
+  e aplica as etapas do protocolo PRISMA 2020: identificação, triagem, elegibilidade e inclusão.
+</p>
+
+<!-- ── Formulário ───────────────────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-header"><i class="bi bi-search me-2"></i>Protocolo de busca</div>
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <div class="col-12">
+        <label class="form-label fw-semibold">Expressão de busca</label>
+        <input type="text" name="q" class="form-control form-control-lg" required
+               placeholder='ex.: blockchain OR "contrato inteligente"' value="{{ crit.expressao }}">
+        <div class="form-text">
+          Operadores <code>AND</code>/<code>E</code>, <code>OR</code>/<code>OU</code>, <code>NOT</code>/<code>NAO</code>
+          (em maiúsculas), parênteses, <code>"frases exatas"</code> e prefixo com <code>*</code>.
+          Acentos e maiúsculas são ignorados. Exemplos:
+          {% for ex in exemplos %}
+            <a href="?q={{ ex|urlencode }}&tipo={{ crit.tipo }}&curso={{ crit.curso }}&exigir_pdf=on" class="ms-1"><code>{{ ex }}</code></a>{% if not forloop.last %},{% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <label class="form-label fw-semibold">Tipo</label>
+        <select name="tipo" class="form-select">
+          {% for t in tipos %}<option value="{{ t }}" {% if t == crit.tipo %}selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label fw-semibold">Curso</label>
+        <select name="curso" class="form-select">
+          {% for c in cursos %}<option value="{{ c }}" {% if c == crit.curso %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label fw-semibold">Ano inicial</label>
+        <input type="number" name="ano_inicio" class="form-control" min="1990" max="{{ ano_atual }}"
+               value="{{ crit.ano_inicio|default_if_none:'' }}" placeholder="—">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label fw-semibold">Ano final</label>
+        <input type="number" name="ano_fim" class="form-control" min="1990" max="{{ ano_atual }}"
+               value="{{ crit.ano_fim|default_if_none:'' }}" placeholder="—">
+      </div>
+      <div class="col-md-4 d-flex flex-column justify-content-end gap-1">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="exigir_pdf" id="exigir_pdf" {% if crit.exigir_pdf %}checked{% endif %}>
+          <label class="form-check-label small" for="exigir_pdf">Elegível só com texto completo (PDF)</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="exigir_resumo" id="exigir_resumo" {% if crit.exigir_resumo %}checked{% endif %}>
+          <label class="form-check-label small" for="exigir_resumo">Elegível só com resumo cadastrado</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="modo_amplo" id="modo_amplo" {% if crit.modo_amplo %}checked{% endif %}>
+          <label class="form-check-label small" for="modo_amplo"
+                 title="A API da biblioteca não pesquisa no resumo. Este modo baixa todo o acervo do curso e filtra localmente.">
+            Modo amplo: buscar também no resumo <i class="bi bi-info-circle"></i>
+          </label>
+        </div>
+      </div>
+
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-play-fill me-1"></i>Executar revisão</button>
+        <a href="{% url 'prisma_busca' %}" class="btn btn-outline-secondary">Limpar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if erro %}
+  <div class="alert alert-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>{{ erro }}</div>
+{% endif %}
+
+{% if res %}
+<!-- ── Fluxograma PRISMA ──────────────────────────────────────── -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-diagram-3 me-2"></i>Fluxograma PRISMA 2020</span>
+        <a href="{% url 'prisma_exportar_csv' %}?{{ querystring }}" class="btn btn-warning btn-sm">
+          <i class="bi bi-filetype-csv me-1"></i>Exportar CSV
+        </a>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted mb-3">
+          Expressão interpretada: <code class="expr">{{ res.expressao_interpretada }}</code>
+        </p>
+        <div class="prisma-flow">
+          <div class="prisma-fase" style="grid-row: span 1">Identificação</div>
+          <div class="prisma-box">
+            Registros identificados no Acervo FEMA
+            <div class="n">{{ res.identificados }}</div>
+            <div class="small text-muted">
+              {% for termo, n in res.consultas.items %}<span class="me-2">{{ termo }}: {{ n }}</span>{% endfor %}
+            </div>
+          </div>
+          <div class="prisma-box excl">
+            Duplicados removidos
+            <div class="n">{{ res.duplicados }}</div>
+          </div>
+
+          <div class="prisma-fase">Triagem</div>
+          <div class="prisma-box">
+            Registros triados (título, palavras-chave e resumo)
+            <div class="n">{{ res.triados }}</div>
+          </div>
+          <div class="prisma-box excl">
+            Excluídos na triagem
+            <div class="n">{{ res.excl_triagem_expressao|add:res.excl_triagem_periodo }}</div>
+            <div class="small">
+              Não atendem à expressão: {{ res.excl_triagem_expressao }}<br>
+              Fora do período: {{ res.excl_triagem_periodo }}
+            </div>
+          </div>
+
+          <div class="prisma-fase">Elegibilidade</div>
+          <div class="prisma-box">
+            Trabalhos avaliados para elegibilidade
+            <div class="n">{{ res.elegiveis_avaliados }}</div>
+          </div>
+          <div class="prisma-box excl">
+            Excluídos na elegibilidade
+            <div class="n">{{ res.excl_sem_pdf|add:res.excl_sem_resumo }}</div>
+            <div class="small">
+              Sem texto completo (PDF): {{ res.excl_sem_pdf }}<br>
+              Sem resumo: {{ res.excl_sem_resumo }}
+            </div>
+          </div>
+
+          <div class="prisma-fase">Inclusão</div>
+          <div class="prisma-box incl last">
+            Trabalhos incluídos na revisão
+            <div class="n">{{ res.total_incluidos }}</div>
+          </div>
+          <div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-bar-chart me-2"></i>Incluídos por ano</div>
+      <div class="card-body"><canvas id="graficoAnos" height="150"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><i class="bi bi-tags me-2"></i>Palavras-chave mais frequentes</div>
+      <div class="card-body"><canvas id="graficoKw" height="210"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Incluídos ──────────────────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-header"><i class="bi bi-check2-circle me-2"></i>Trabalhos incluídos ({{ res.total_incluidos }})</div>
+  <div class="table-responsive">
+    <table class="table table-striped table-hover mb-0 align-middle">
+      <thead>
+        <tr><th style="width:60px">Ano</th><th>Trabalho</th><th style="width:220px">Autoria</th><th style="width:90px">PDF</th></tr>
+      </thead>
+      <tbody>
+      {% for t in res.incluidos %}
+        <tr>
+          <td class="fw-semibold">{{ t.ano|default:"—" }}</td>
+          <td>
+            <div class="fw-semibold">{{ t.titulo }}</div>
+            <div class="mt-1">
+              {% for kw in t.palavras_chave|slice:":6" %}<span class="badge kw-badge me-1">{{ kw }}</span>{% endfor %}
+            </div>
+            {% if t.resumo %}
+              <details class="mt-1">
+                <summary class="small text-primary" style="cursor:pointer">Ver resumo</summary>
+                <p class="resumo mt-1 mb-0">{{ t.resumo }}</p>
+              </details>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% for a in t.autores %}<div><i class="bi bi-person me-1"></i>{{ a }}</div>{% endfor %}
+            {% for o in t.orientadores %}<div class="text-muted"><i class="bi bi-mortarboard me-1"></i>{{ o }}</div>{% endfor %}
+          </td>
+          <td>
+            {% if t.tem_pdf %}
+              <a href="{{ t.url_pdf }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-file-earmark-pdf"></i> PDF
+              </a>
+            {% else %}<span class="text-muted small">—</span>{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="text-center text-muted py-4">Nenhum trabalho incluído com esses critérios.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Excluídos ──────────────────────────────────────────────── -->
+{% if res.excluidos %}
+<div class="card">
+  <div class="card-header">
+    <a class="text-white text-decoration-none" data-bs-toggle="collapse" href="#excluidos">
+      <i class="bi bi-x-circle me-2"></i>Trabalhos excluídos ({{ res.excluidos|length }}) <i class="bi bi-chevron-down small"></i>
+    </a>
+  </div>
+  <div id="excluidos" class="collapse">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0 align-middle">
+        <thead><tr><th style="width:120px">Etapa</th><th style="width:240px">Motivo</th><th style="width:60px">Ano</th><th>Título</th></tr></thead>
+        <tbody>
+        {% for ex in res.excluidos %}
+          <tr>
+            <td><span class="badge {% if ex.etapa == 'Triagem' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">{{ ex.etapa }}</span></td>
+            <td class="small">{{ ex.motivo }}</td>
+            <td class="small">{{ ex.trabalho.ano|default:"—" }}</td>
+            <td class="small">{{ ex.trabalho.titulo }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{{ grafico_anos|json_script:"dados-anos" }}
+{{ grafico_kw|json_script:"dados-kw" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    const azul = '#004784', laranja = '#F58220';
+    const anos = JSON.parse(document.getElementById('dados-anos').textContent);
+    const kw   = JSON.parse(document.getElementById('dados-kw').textContent);
+    const base = { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } };
+
+    new Chart(document.getElementById('graficoAnos'), {
+      type: 'bar',
+      data: { labels: anos.map(a => a[0]), datasets: [{ data: anos.map(a => a[1]), backgroundColor: azul, borderRadius: 4 }] },
+      options: base,
+    });
+    new Chart(document.getElementById('graficoKw'), {
+      type: 'bar',
+      data: { labels: kw.map(k => k[0]), datasets: [{ data: kw.map(k => k[1]), backgroundColor: laranja, borderRadius: 4 }] },
+      options: { ...base, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } },
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}
