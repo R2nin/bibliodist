@@ -62,7 +62,38 @@ docker compose down
 | `/emprestimos/` | Listagem com filtro por status (ativo/devolvido/atrasado) |
 | `/emprestimos/novo/` | Registrar empréstimo (valida disponibilidade via gRPC) |
 | `/emprestimos/<pk>/devolver/` | Registrar devolução |
+| `/prisma/` | Revisão sistemática PRISMA 2020 sobre os TCCs do Acervo Digital da FEMA |
+| `/prisma/exportar.csv` | Exporta incluídos e excluídos (com etapa e motivo) da revisão atual |
 | `/admin/` | Django Admin (todos os modelos) |
+
+## Revisão PRISMA (Acervo Digital FEMA)
+
+Integração do projeto [prisma-scraper](https://github.com/R2nin/prisma-scraper) ao BiblioDist,
+usando como base de dados o **Acervo Digital da Biblioteca da FEMA**
+(<https://cepein.fema.edu.br/aplicacoes/extra-fema/consulta-acervo-biblioteca>).
+
+**Coleta.** A página do acervo é um app Angular. Inspecionando a aba *Network* do navegador,
+descobrimos a API REST pública que ela consome, então o Django consulta essa API direto, sem Selenium:
+
+| Endpoint | Uso |
+|---|---|
+| `GET cepeinb.fema.edu.br/extra-fema/consulta-acervo/buscar-lista-filtrada` | busca paginada (`page`, `size`, `tipo`, `curso`, `palavrasChave`, `titulo`, `autor`) |
+| `GET .../buscar-lista-cursos` e `.../buscar-lista-tipo` | opções dos filtros |
+| `GET cepeinb.fema.edu.br/download-extra-fema/download/14/{uuid_arquivo}` | PDF do trabalho |
+
+A API busca **um termo por vez**, ignora acentos e maiúsculas e **não pesquisa no resumo**.
+Por isso o BiblioDist:
+
+1. **Identificação:** faz uma consulta por termo positivo da expressão e remove os duplicados pelo `id`.
+   No *modo amplo*, baixa o acervo inteiro do curso (o BCC tem cerca de 600 TCCs) para também achar termos que só aparecem no resumo.
+2. **Triagem:** avalia localmente a expressão booleana (`AND`/`OR`/`NOT`, parênteses, `"frases"`, `prefixo*`)
+   sobre título, palavras-chave e resumo, e aplica o filtro de período.
+3. **Elegibilidade:** exige texto completo em PDF e, se marcado, resumo cadastrado.
+4. **Inclusão:** lista final, fluxograma PRISMA, gráficos por ano e por palavra-chave, e exportação em CSV.
+
+As respostas ficam 1 h em cache para não sobrecarregar o servidor da instituição.
+Código em `api-web/biblioteca/prisma/` (`acervo_fema.py`, `consulta.py`, `pipeline.py`) e testes em
+`api-web/biblioteca/tests.py` (`python manage.py test biblioteca`, sem acesso à internet).
 
 ## Como rodar manualmente (sem Docker)
 
