@@ -45,8 +45,6 @@ services:
       GRPC_PORT: "50051"
       ALLOWED_HOSTS: "*"
       DEBUG: "False"
-    ports:
-      - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
