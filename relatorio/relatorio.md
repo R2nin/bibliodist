@@ -1,43 +1,119 @@
 # BiblioDist — Sistema de Gerenciamento de Biblioteca Distribuída
 
 **Disciplina:** Sistemas Distribuídos  
-**Professor:** Almir  
+**Professor:** Almir Camolesi  
 **Instituição:** FEMA — Fundação Educacional do Município de Assis  
 **Aluno:** Arthur Naoto Miura  
 **RA:** 2311600029  
-**Data:** Junho de 2026  
+**Data:** Novembro de 2026  
 
 ---
 
 ## Sumário
 
-1. [Objetivo e Contexto](#1-objetivo-e-contexto)  
-2. [Arquitetura do Sistema](#2-arquitetura-do-sistema)  
-3. [Tecnologias e Bibliotecas Utilizadas](#3-tecnologias-e-bibliotecas-utilizadas)  
-4. [Fase 0 — Setup Inicial](#4-fase-0--setup-inicial)  
-5. [Fase 1 — Domínio da Biblioteca](#5-fase-1--domínio-da-biblioteca)  
-6. [Fase 2 — Serviço gRPC](#6-fase-2--serviço-grpc)  
-7. [Fase 3 — Mensageria com RabbitMQ](#7-fase-3--mensageria-com-rabbitmq)  
-8. [Fase 4 — Containerização com Docker](#8-fase-4--containerização-com-docker)  
-9. [Como Executar o Sistema](#9-como-executar-o-sistema)  
-10. [Telas do Sistema](#10-telas-do-sistema)  
-11. [Conclusão e Aprendizados](#11-conclusão-e-aprendizados)  
+1. [Objetivo e Contexto](#1-objetivo-e-contexto)
+2. [Aderência aos Requisitos do Trabalho](#2-aderência-aos-requisitos-do-trabalho)
+3. [Arquitetura do Sistema](#3-arquitetura-do-sistema)
+4. [Tecnologias e Bibliotecas Utilizadas](#4-tecnologias-e-bibliotecas-utilizadas)
+5. [Fase 1 — Domínio da Biblioteca](#5-fase-1--domínio-da-biblioteca)
+6. [Fase 2 — Serviço gRPC](#6-fase-2--serviço-grpc)
+7. [Fase 3 — Mensageria com RabbitMQ](#7-fase-3--mensageria-com-rabbitmq)
+8. [Fase 4 — Containerização com Docker](#8-fase-4--containerização-com-docker)
+9. [Fase 5 — Relatório Acadêmico](#9-fase-5--relatório-acadêmico)
+10. [Fase 6 — Acervo Real e Identidade Visual FEMA](#10-fase-6--acervo-real-e-identidade-visual-fema)
+11. [Fase 7 — Revisão Sistemática PRISMA 2020](#11-fase-7--revisão-sistemática-prisma-2020)
+12. [Deploy em Nuvem — Coolify](#12-deploy-em-nuvem--coolify)
+13. [Como Executar o Sistema](#13-como-executar-o-sistema)
+14. [Telas do Sistema](#14-telas-do-sistema)
+15. [Conclusão e Aprendizados](#15-conclusão-e-aprendizados)
 
 ---
 
 ## 1. Objetivo e Contexto
 
-O projeto **BiblioDist** foi desenvolvido como trabalho prático da disciplina de Sistemas Distribuídos. O objetivo é construir um sistema de gerenciamento de biblioteca que demonstre na prática os três principais paradigmas de comunicação distribuída:
+O projeto **BiblioDist** foi desenvolvido como trabalho prático da disciplina de Sistemas Distribuídos. O objetivo é construir um sistema de gerenciamento de biblioteca que demonstre na prática os principais paradigmas de comunicação distribuída:
 
-- **HTTP/REST** — comunicação síncrona entre cliente e servidor web  
-- **RPC com gRPC** — chamada remota de procedimento entre microsserviços  
-- **Mensageria assíncrona com RabbitMQ** — desacoplamento via filas de mensagens  
+- **HTTP/REST** — comunicação síncrona entre cliente e servidor web
+- **RPC com gRPC** — chamada remota de procedimento entre microsserviços
+- **Mensageria assíncrona com RabbitMQ** — desacoplamento via filas de mensagens
 
-O sistema gerencia livros, autores, categorias, leitores, empréstimos e notificações, integrando esses três mecanismos em um fluxo coeso.
+O sistema gerencia o **acervo real da Biblioteca da FEMA** (12.044 livros, 36.452 exemplares), integra os três mecanismos de comunicação em um fluxo coeso e oferece ainda uma ferramenta de **Revisão Sistemática PRISMA 2020** sobre os TCCs do Acervo Digital da instituição.
 
 ---
 
-## 2. Arquitetura do Sistema
+## 2. Aderência aos Requisitos do Trabalho
+
+> *"Desenvolver uma aplicação que use pelo menos 3 dos conceitos: SOA, Webservice (SOAP), Webservice (REST), Conceitos de Computação em Nuvem, Conceitos de DevOps, Microserviços, Docker, Kubernetes, MCP, outros."*
+
+O BiblioDist implementa **6 dos conceitos** solicitados:
+
+### Docker ✅
+
+Todos os serviços rodam em containers Docker, orquestrados com Docker Compose:
+
+```yaml
+services:
+  db:        # postgres:16-alpine
+  rabbitmq:  # rabbitmq:3.13-management-alpine
+  migrate:   # init container — roda migrate e sai
+  web:       # Django + Gunicorn
+  grpc:      # servidor gRPC
+  worker:    # consumidor RabbitMQ
+```
+
+Cada serviço tem seu próprio `Dockerfile`. A inicialização é ordenada via `depends_on` com `healthcheck`.
+
+### Webservice (REST) ✅
+
+Dois usos de REST no projeto:
+
+1. **Django como servidor REST** — todas as telas são servidas via HTTP/REST (formulários, listagens, ações de CRUD)
+2. **Django como cliente REST** — o módulo PRISMA consome a API REST pública do Acervo Digital da FEMA:
+
+| Endpoint consumido | Uso |
+|---|---|
+| `GET /buscar-lista-filtrada?page=&size=&tipo=&curso=&palavrasChave=` | Busca paginada de TCCs |
+| `GET /buscar-lista-cursos` | Lista de cursos disponíveis |
+| `GET /download-extra-fema/download/14/{uuid}` | PDF do trabalho |
+
+### SOA — Arquitetura Orientada a Serviços ✅
+
+O sistema é composto por três serviços com contratos bem definidos e independência de deploy:
+
+| Serviço | Protocolo | Contrato |
+|---|---|---|
+| `api-web` | HTTP | URLs Django (`urls.py`) |
+| `grpc-service` | gRPC / Protocol Buffers | `proto/biblioteca.proto` |
+| `worker` | AMQP | Fila `notificacoes` (JSON) |
+
+Cada serviço pode ser substituído ou escalado de forma independente, característica central de SOA.
+
+### Microserviços ✅
+
+`api-web`, `grpc-service` e `worker` são processos independentes:
+- Cada um tem seu próprio `Dockerfile` e `requirements.txt`
+- Comunicam-se exclusivamente por protocolos de rede (gRPC, AMQP)
+- Implementam fallback gracioso: se um serviço cair, os demais continuam funcionando
+
+### Conceitos de DevOps ✅
+
+- **Repositório GitHub** público: `https://github.com/R2nin/bibliodist`
+- **Deploy automatizado via Coolify**: push no GitHub → rebuild e restart automático dos containers
+- **Infraestrutura como código**: `docker-compose.yml` e `docker-compose.coolify.yml` versionados
+- **Variáveis de ambiente**: zero segredos no código (`DATABASE_URL`, `RABBITMQ_URL`, `SECRET_KEY`)
+- **Health checks**: PostgreSQL (`pg_isready`) e RabbitMQ (`rabbitmq-diagnostics ping`) garantem inicialização ordenada
+- **Init container**: serviço `migrate` roda as migrations e sai antes dos demais subirem
+
+### Conceitos de Computação em Nuvem ✅
+
+- **Deploy em servidor do professor** via Coolify (`computacao.fema.edu.br`), plataforma PaaS self-hosted
+- **Isolamento por containers**: cada serviço roda em seu próprio namespace
+- **Elasticidade**: basta alterar o `docker-compose.coolify.yml` para escalar réplicas
+- **Separação entre infraestrutura e aplicação**: a aplicação é agnóstica ao ambiente (local ou nuvem)
+
+---
+
+## 3. Arquitetura do Sistema
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -46,20 +122,29 @@ O sistema gerencia livros, autores, categorias, leitores, empréstimos e notific
                           │ HTTP (porta 8000)
 ┌─────────────────────────▼───────────────────────────────────┐
 │              api-web (Django + Gunicorn)                    │
-│   CRUD Livros │ Autores │ Leitores │ Empréstimos            │
-└──────────┬────────────────────────────────┬─────────────────┘
-           │ gRPC (porta 50051)             │ AMQP (porta 5672)
-┌──────────▼──────────┐        ┌────────────▼────────────────┐
-│  grpc-service       │        │        RabbitMQ             │
-│  BibliotecaService  │        │   fila: notificacoes        │
-│  VerificarDisp.     │        └────────────┬────────────────┘
-│  RegistrarEmp.      │                     │ consume
-└──────────┬──────────┘        ┌────────────▼────────────────┐
-           │ Django ORM        │          worker             │
-           │                   │  persiste Notificacao no DB │
-┌──────────▼───────────────────▼─────────────────────────────┐
+│  CRUD Livros │ Autores │ Leitores │ Empréstimos │ PRISMA    │
+└──────────┬───────────────────────────────┬──────────────────┘
+           │ gRPC (porta 50051)            │ AMQP (porta 5672)
+┌──────────▼──────────┐       ┌────────────▼─────────────────┐
+│  grpc-service       │       │        RabbitMQ              │
+│  BibliotecaService  │       │   fila: notificacoes         │
+│  VerificarDisp.     │       └────────────┬─────────────────┘
+│  RegistrarEmp.      │                    │ consume
+└──────────┬──────────┘       ┌────────────▼─────────────────┐
+           │ Django ORM       │          worker              │
+           │                  │  persiste Notificacao no DB  │
+┌──────────▼──────────────────▼──────────────────────────────┐
 │                  PostgreSQL (porta 5432)                    │
-└─────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────┘
+
+                    ┌─────────────────────────┐
+                    │  API REST FEMA (externa) │
+                    │  cepeinb.fema.edu.br     │
+                    └────────────▲────────────┘
+                                 │ HTTP/REST (módulo PRISMA)
+                    ┌────────────┴────────────┐
+                    │  api-web / prisma/       │
+                    └─────────────────────────┘
 ```
 
 ### Fluxo de um Empréstimo
@@ -71,150 +156,53 @@ O sistema gerencia livros, autores, categorias, leitores, empréstimos e notific
 5. O **worker** consome a mensagem e persiste a `Notificacao` no banco
 6. Usuário vê a confirmação na tela
 
-> Se o gRPC estiver offline: Django cria o empréstimo localmente (fallback) e publica na fila diretamente.  
+> Se o gRPC estiver offline: Django cria o empréstimo localmente (fallback) e publica na fila diretamente.
 > Se o RabbitMQ estiver offline: a notificação é criada diretamente no banco (fallback síncrono).
 
 ---
 
-## 3. Tecnologias e Bibliotecas Utilizadas
-
-### Linguagem
+## 4. Tecnologias e Bibliotecas Utilizadas
 
 | Tecnologia | Versão | Uso |
 |---|---|---|
-| Python | 3.12 | Linguagem principal de todos os serviços |
-| JavaScript | Node 24 | Geração de screenshots (puppeteer) |
-
-### Backend
-
-| Biblioteca | Versão | Finalidade |
-|---|---|---|
-| **Django** | 5.0 | Framework web MVC — views, models, templates, admin, ORM |
-| **Gunicorn** | 26.0 | Servidor WSGI de produção (substitui o `runserver`) |
-| **dj-database-url** | 2.1 | Leitura da `DATABASE_URL` para configurar o banco |
-| **python-dotenv** | 1.0 | Carregamento de variáveis de ambiente do `.env` |
-| **whitenoise** | 6.6 | Servir arquivos estáticos diretamente pelo Django |
-
-### Banco de Dados
-
-| Biblioteca | Versão | Finalidade |
-|---|---|---|
-| **PostgreSQL** | 16 | Banco de dados relacional (produção/Docker) |
-| **psycopg2-binary** | 2.9 | Driver Python para conexão com PostgreSQL |
-| SQLite | — | Banco de dados local para desenvolvimento sem Docker |
-
-### gRPC
-
-| Biblioteca | Versão | Finalidade |
-|---|---|---|
-| **grpcio** | 1.60 | Runtime gRPC — servidor e cliente |
-| **grpcio-tools** | 1.60 | Compilador de `.proto` → stubs Python |
-| **protobuf** | 4.21 | Serialização de mensagens Protocol Buffers |
-
-### Mensageria
-
-| Biblioteca | Versão | Finalidade |
-|---|---|---|
-| **RabbitMQ** | 3.13 | Broker de mensagens AMQP |
-| **pika** | 1.3 | Cliente Python para RabbitMQ |
-
-### Containerização
-
-| Tecnologia | Versão | Finalidade |
-|---|---|---|
-| **Docker** | — | Containerização de cada serviço |
-| **Docker Compose** | — | Orquestração dos 6 containers |
-
-### Técnicas Utilizadas
-
-| Técnica | Descrição |
-|---|---|
-| **MVC (Model-View-Controller)** | Organização do Django em models, views e templates |
-| **ORM** | Acesso ao banco via Django ORM — sem SQL manual |
-| **RPC síncrono** | gRPC com Protocol Buffers para comunicação entre serviços |
-| **Filas de mensagens** | RabbitMQ AMQP com fila durável `notificacoes` |
-| **Padrão Fallback** | Degradação graciosa quando gRPC ou MQ estão offline |
-| **Health Check** | `pg_isready` e `rabbitmq-diagnostics ping` no Docker |
-| **Init container** | Serviço `migrate` garante schema antes dos outros subirem |
-| **Variáveis de ambiente** | Toda configuração via env vars — sem segredos no código |
-
----
-
-## 4. Fase 0 — Setup Inicial
-
-**Commit:** `feat: setup inicial do projeto`
-
-Criação do esqueleto do projeto Django com as melhores práticas para deploy:
-
-```
-bibliodist/
-├── api-web/
-│   ├── config/
-│   │   ├── settings.py   # configuração via env vars
-│   │   ├── urls.py
-│   │   └── wsgi.py
-│   ├── manage.py
-│   ├── Procfile          # para deploy no Railway
-│   ├── runtime.txt       # python-3.12
-│   └── requirements.txt
-├── grpc-service/
-├── proto/
-└── worker/
-```
-
-**Decisões de design:**
-- `SECRET_KEY`, `DATABASE_URL`, `ALLOWED_HOSTS` via variáveis de ambiente
-- Fallback para SQLite quando `DATABASE_URL` não está definida
-- WhiteNoise para servir arquivos estáticos sem Nginx
+| **Python** | 3.12 | Linguagem principal |
+| **Django** | 5.0 | Framework web — views, models, templates, admin, ORM |
+| **Gunicorn** | 26.0 | Servidor WSGI de produção |
+| **PostgreSQL** | 16 | Banco de dados relacional |
+| **grpcio + protobuf** | 1.60 | RPC com Protocol Buffers |
+| **RabbitMQ + pika** | 3.13 / 1.3 | Broker AMQP + cliente Python |
+| **requests** | 2.31 | Cliente HTTP (módulo PRISMA → API FEMA) |
+| **Docker + Compose** | — | Containerização e orquestração |
+| **Bootstrap** | 5.3.3 | Interface responsiva (mobile-friendly) |
+| **Coolify** | 4.6 | Plataforma de deploy em nuvem |
 
 ---
 
 ## 5. Fase 1 — Domínio da Biblioteca
 
-**Commits:** `feat: dominio da biblioteca` + `fix: mensagem de erro destacada`
+**Commit:** `feat: dominio da biblioteca`
 
-### Models
+Models principais:
 
 ```python
-# api-web/biblioteca/models.py (trechos principais)
-
 class Livro(models.Model):
     titulo = models.CharField(max_length=300)
-    isbn = models.CharField(max_length=20, unique=True)
-    autor = models.ForeignKey(Autor, on_delete=models.PROTECT)
+    tombo_inicial = models.CharField(max_length=50, db_index=True)
+    classificacao_cdd = models.CharField(max_length=50)
     total_exemplares = models.PositiveIntegerField(default=1)
 
     @property
     def exemplares_disponiveis(self):
-        ativos = self.emprestimos.filter(status="ativo").count()
-        return self.total_exemplares - ativos
-
+        return self.total_exemplares - self.emprestimos.filter(status="ativo").count()
 
 class Emprestimo(models.Model):
-    STATUS_CHOICES = [("ativo","Ativo"), ("devolvido","Devolvido"), ("atrasado","Atrasado")]
-    livro = models.ForeignKey(Livro, on_delete=models.PROTECT)
-    leitor = models.ForeignKey(Leitor, on_delete=models.PROTECT)
-    data_emprestimo = models.DateField(default=timezone.now)
-    data_prevista = models.DateField()
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES)
-
-
-class Notificacao(models.Model):
-    leitor = models.ForeignKey(Leitor, on_delete=models.CASCADE)
-    emprestimo = models.ForeignKey(Emprestimo, on_delete=models.CASCADE)
-    tipo = models.CharField(max_length=15)  # emprestimo | devolucao | atraso
-    mensagem = models.TextField()
-    criada_em = models.DateTimeField(auto_now_add=True)
+    STATUS = [("ativo","Ativo"), ("devolvido","Devolvido"), ("atrasado","Atrasado")]
+    livro   = models.ForeignKey(Livro, on_delete=models.PROTECT)
+    leitor  = models.ForeignKey(Leitor, on_delete=models.PROTECT)
+    status  = models.CharField(max_length=10, choices=STATUS)
 ```
 
-### Funcionalidades
-
-- CRUD completo para Livros, Autores, Categorias e Leitores
-- Busca por título nos livros; paginação de 10 itens por página
-- Empréstimos: criar (bloqueia se sem exemplares disponíveis), listar, devolver
-- Detecção automática de atraso: atualiza status ao abrir a lista de empréstimos
-- `python manage.py seed [--limpar]` para popular o banco com dados de teste
-- Admin Django registrado para todos os models
+Funcionalidades: CRUD completo, busca por título/tombo/chapa, paginação, detecção automática de atraso.
 
 ---
 
@@ -222,63 +210,16 @@ class Notificacao(models.Model):
 
 **Commit:** `feat: servico gRPC (BibliotecaService) com cliente integrado no Django`
 
-### Definição do contrato (biblioteca.proto)
+Contrato definido em `proto/biblioteca.proto`:
 
 ```protobuf
-syntax = "proto3";
-package biblioteca;
-
 service BibliotecaService {
   rpc VerificarDisponibilidade(VerificarRequest) returns (DisponibilidadeResponse);
-  rpc RegistrarEmprestimo(EmprestimoRequest) returns (EmprestimoResponse);
-}
-
-message VerificarRequest  { int32 livro_id = 1; }
-message DisponibilidadeResponse {
-  bool   disponivel             = 1;
-  int32  exemplares_disponiveis = 2;
-  string titulo                 = 3;
-}
-message EmprestimoRequest {
-  int32  livro_id      = 1;
-  int32  leitor_id     = 2;
-  string data_prevista = 3;
-}
-message EmprestimoResponse {
-  bool   sucesso       = 1;
-  int32  emprestimo_id = 2;
-  string mensagem      = 3;
+  rpc RegistrarEmprestimo(EmprestimoRequest)    returns (EmprestimoResponse);
 }
 ```
 
-### Geração dos stubs
-
-```bash
-python -m grpc_tools.protoc \
-  -I proto \
-  --python_out=grpc-service \
-  --grpc_python_out=grpc-service \
-  proto/biblioteca.proto
-```
-
-### Cliente no Django (grpc_client.py)
-
-```python
-GRPC_HOST = os.environ.get("GRPC_HOST", "localhost")
-GRPC_PORT = os.environ.get("GRPC_PORT", "50051")
-
-def verificar_disponibilidade(livro_id: int) -> dict:
-    try:
-        stub = _get_stub()
-        resp = stub.VerificarDisponibilidade(
-            biblioteca_pb2.VerificarRequest(livro_id=livro_id), timeout=5
-        )
-        return {"disponivel": resp.disponivel, ...}
-    except grpc.RpcError as exc:
-        raise ConnectionError(f"gRPC indisponível: {exc.details()}")
-```
-
-**Fallback:** se o gRPC estiver offline, a view captura o `ConnectionError` e cria o empréstimo localmente, exibindo aviso ao usuário.
+O contrato é compilado (`grpc_tools.protoc`) para stubs Python usados tanto pelo `grpc-service` quanto pelo `api-web`. Se o serviço gRPC estiver indisponível, o Django executa a operação localmente (fallback gracioso).
 
 ---
 
@@ -286,25 +227,8 @@ def verificar_disponibilidade(livro_id: int) -> dict:
 
 **Commit:** `feat: mensageria RabbitMQ (mq_publisher + worker de notificacoes)`
 
-### Publicador (mq_publisher.py)
-
 ```python
-def publicar_emprestimo(emprestimo_id, livro_titulo, leitor_id, data_prevista):
-    payload = {
-        "tipo": "emprestimo",
-        "emprestimo_id": emprestimo_id,
-        "leitor_id": leitor_id,
-        "mensagem": f'Empréstimo do livro "{livro_titulo}". Devolver até {data_prevista}.',
-    }
-    try:
-        _publicar(payload)   # abre conexão AMQP, publica, fecha
-    except Exception:
-        _fallback_sincrono(payload)  # cria Notificacao direto no banco
-```
-
-### Worker (worker/worker.py)
-
-```python
+# worker/worker.py — consumidor
 def processar(ch, method, properties, body):
     payload = json.loads(body)
     Notificacao.objects.create(
@@ -314,20 +238,9 @@ def processar(ch, method, properties, body):
         mensagem=payload["mensagem"],
     )
     ch.basic_ack(delivery_tag=method.delivery_tag)
-
-def main():
-    while True:   # reconexão automática
-        try:
-            conectar_e_consumir()
-        except pika.exceptions.AMQPConnectionError:
-            time.sleep(5)
 ```
 
-**Características:**
-- Fila `notificacoes` durável (`durable=True`) — mensagens persistem se o broker reiniciar
-- Mensagens persistentes (`delivery_mode=2`)
-- `prefetch_count=1` — worker processa uma mensagem por vez
-- Reconexão automática a cada 5 segundos
+Características: fila durável, mensagens persistentes (`delivery_mode=2`), `prefetch_count=1`, reconexão automática a cada 5 s.
 
 ---
 
@@ -335,183 +248,193 @@ def main():
 
 **Commit:** `feat: orquestracao Docker (Fase 4)`
 
-### Estrutura dos containers
-
-```yaml
-# docker-compose.yml — resumo
-services:
-  db:        # postgres:16-alpine — banco de dados
-  rabbitmq:  # rabbitmq:3.13-management-alpine — broker
-  migrate:   # mesmo build do web — roda migrate e sai (init container)
-  web:       # Django + Gunicorn — porta 8000
-  grpc:      # servidor gRPC — porta 50051
-  worker:    # consumidor RabbitMQ
-```
-
-### Estratégia de inicialização
-
-O maior desafio foi garantir a ordem correta de inicialização:
+6 containers orquestrados com Docker Compose, com estratégia de inicialização ordenada:
 
 ```
 db (healthy) ──┐
-               ├──► migrate (roda e sai) ──► web, grpc, worker
+               ├──► migrate (roda e sai) ──► web + grpc + worker
 rabbitmq (healthy) ─┘
 ```
 
-Usando `depends_on` com condições:
-```yaml
-web:
-  depends_on:
-    db:
-      condition: service_healthy
-    rabbitmq:
-      condition: service_healthy
-    migrate:
-      condition: service_completed_successfully
-```
-
-### Dockerfiles
-
-Cada serviço tem seu próprio Dockerfile. O ponto importante é que `grpc-service` e `worker` precisam de acesso ao código Django (para usar o ORM), então cada um recebe uma cópia:
-
-```dockerfile
-# grpc-service/Dockerfile
-WORKDIR /app/grpc-service
-COPY grpc-service/ .
-COPY api-web/ /app/api-web/   # necessário: server.py usa Path(__file__).parent.parent / "api-web"
-```
-
-### Problemas encontrados e soluções
-
-| Problema | Causa | Solução |
-|---|---|---|
-| `ModuleNotFoundError: No module named 'google'` | `protobuf` não declarado explicitamente | Adicionado `protobuf>=4.21` ao `requirements.txt` |
-| Worker falha ao subir | RabbitMQ ainda inicializando (demora ~30s) | Worker tem loop de reconexão automática |
-| Dados duplicados no seed | Seed rodado mais de uma vez | `python manage.py seed --limpar` |
+Cada serviço usa `depends_on` com condições `service_healthy` / `service_completed_successfully`.
 
 ---
 
-## 9. Como Executar o Sistema
+## 9. Fase 5 — Relatório Acadêmico
 
-### Pré-requisitos
+Documentação completa do projeto em Markdown, com screenshots autenticados e diagrama de arquitetura.
 
-- Docker Desktop instalado e rodando
-- Git
+---
 
-### Passo a passo
+## 10. Fase 6 — Acervo Real e Identidade Visual FEMA
+
+**Commits:** `c08afe4`, `15a3677`, `7d8f8f1`, `cc07412`
+
+### Importação do Acervo Patrimonial
+
+Foram importados **12.044 livros** e **36.452 exemplares** do Portal de Transparência da FEMA, utilizando um comando de management Django:
 
 ```bash
-# 1. Clonar o repositório
-git clone <url-do-repositorio>
-cd bibliodist
-
-# 2. Subir todos os containers
-docker compose up --build
-
-# Aguardar as mensagens (em ordem):
-# ✓ database system is ready to accept connections
-# ✓ Running migrations: ... OK
-# ✓ Server startup complete (RabbitMQ)
-# ✓ Booting worker with pid (Gunicorn)
-# ✓ Worker conectado. Aguardando mensagens na fila 'notificacoes'
-
-# 3. Popular o banco com dados de teste (somente no primeiro uso)
-docker compose exec web python manage.py seed
-
-# 4. Criar usuário admin (opcional)
-docker compose exec web python manage.py createsuperuser
+python manage.py importar_acervo "Portal Transparencia (...).json"
 ```
 
-### Acessos
+O JSON do portal usa três formatos diferentes de descrição, todos tratados pelo parser:
+
+| Formato | Exemplo |
+|---|---|
+| Tombo Inicial puro | `"005-11-00001"` |
+| Título/C/T | `"REDES DE COMPUTADORES/004.6/R314r"` |
+| TITLE-EDITORA | `"JAVA EFETIVO-ALTA BOOKS"` |
+
+Novos campos adicionados ao modelo `Livro`: `tombo_inicial`, `tombo_exemplar`, `classificacao_cdd`, `data_aquisicao`, `chapa`.
+
+### Identidade Visual FEMA
+
+Interface redesenhada seguindo o **Manual de Identidade Visual FEMA 2024**:
+
+- **Cores:** azul `#004784` (PANTONE 653-C) e laranja `#F58220` (PANTONE 021-C)
+- **Tipografia:** Arial (família oficial)
+- **Elemento gráfico:** triângulo ▶ laranja como marcador de seção
+- **Home:** hero banner, cards de estatísticas em tempo real, acesso rápido
+- **Navbar:** links ativos destacados, Bootstrap Icons, footer institucional
+- **Responsividade:** Bootstrap 5, `table-responsive`, `flex-wrap` em todos os formulários
+
+---
+
+## 11. Fase 7 — Revisão Sistemática PRISMA 2020
+
+**Commit:** `2cc78a5` (branch `feat/revisao-prisma`, mergeado via PR #1)
+
+### Motivação
+
+O Acervo Digital da Biblioteca da FEMA (`cepein.fema.edu.br`) expõe uma API REST pública não documentada (descoberta inspecionando a aba *Network* do browser). O módulo PRISMA consome essa API para realizar revisões sistemáticas de literatura sobre os TCCs da instituição.
+
+### Arquitetura do módulo
+
+```
+biblioteca/prisma/
+├── acervo_fema.py   # cliente HTTP da API, cache de 1h, fallback para valores locais
+├── consulta.py      # parser de expressões booleanas (AND/OR/NOT, parênteses, frases, prefixo*)
+└── pipeline.py      # fluxo PRISMA 2020: Identificação → Triagem → Elegibilidade → Inclusão
+```
+
+### Protocolo PRISMA 2020
+
+| Etapa | O que faz |
+|---|---|
+| **Identificação** | Consulta paginada à API por cada termo positivo da expressão; em *modo amplo*, baixa o acervo completo do curso |
+| **Triagem** | Avalia a expressão booleana localmente (título + palavras-chave + resumo); aplica filtro de período e orientador |
+| **Elegibilidade** | Filtra por PDF disponível e/ou resumo cadastrado |
+| **Inclusão** | Lista final com fluxograma PRISMA, gráficos por ano e por palavra-chave, links para PDFs e exportação CSV |
+
+### Parser booleano
+
+```
+(inteligencia OR machine OR neural) AND saude NOT jogo
+blockchain OR "contrato inteligente" OR "smart contract"
+educa* AND (aplicativo OR mobile)
+```
+
+Suporta: `AND`/`E`, `OR`/`OU`, `NOT`/`NAO`, parênteses, frases entre aspas, prefixo com `*`, busca por orientador.
+
+### Cursos disponíveis
+
+Todos os 14 cursos de graduação da FEMA: ADM, ADS, ARQ, BCC, CONT, DIR, EDF, ENF, ENG, FIS, MED, PUB, QUIM, TA.
+
+### Testes
+
+19 testes offline (sem acesso à internet) cobrindo o parser, o pipeline e os casos de borda.
+
+```bash
+python manage.py test biblioteca
+```
+
+---
+
+## 12. Deploy em Nuvem — Coolify
+
+**Plataforma:** Coolify v4.6 — `computacao.fema.edu.br` (servidor do professor)
+
+### Estratégia de deploy
+
+O arquivo `docker-compose.coolify.yml` usa build direto do GitHub como contexto:
+
+```yaml
+web:
+  build:
+    context: https://github.com/R2nin/bibliodist.git#master
+    dockerfile: api-web/Dockerfile
+```
+
+Assim, o servidor do professor clona, compila e executa diretamente do repositório público, sem necessidade de publicar imagens em um registry.
+
+### Containers em produção
+
+| Container | Status | Descrição |
+|---|---|---|
+| `db` | Running (healthy) | PostgreSQL 16 |
+| `rabbitmq` | Running (healthy) | RabbitMQ 3.13 |
+| `migrate` | Exited (0) | Migrations aplicadas na inicialização |
+| `web` | Running | Django + Gunicorn |
+| `grpc` | Running | Servidor gRPC |
+| `worker` | Running | Consumidor RabbitMQ |
+
+### DNS
+
+Aguardando configuração do registro `A bibliodist.computacao.fema.edu.br → 187.33.201.107` pelo administrador do servidor.
+
+---
+
+## 13. Como Executar o Sistema
+
+### Com Docker (recomendado)
+
+```bash
+git clone https://github.com/R2nin/bibliodist.git
+cd bibliodist
+docker compose up --build
+```
+
+Aguarde `Worker conectado. Aguardando mensagens na fila 'notificacoes'`.
+
+```bash
+# Importar o acervo real (opcional)
+docker compose exec web python manage.py importar_acervo <arquivo.json>
+
+# Criar usuário admin
+docker compose exec web python manage.py createsuperuser
+```
 
 | Serviço | URL | Credenciais |
 |---|---|---|
 | Aplicação web | http://localhost:8000 | — |
-| Admin Django | http://localhost:8000/admin | usuário criado no passo 4 |
+| Django Admin | http://localhost:8000/admin | admin criado acima |
+| Revisão PRISMA | http://localhost:8000/prisma/ | — |
 | RabbitMQ UI | http://localhost:15672 | guest / guest |
 
-### Comandos úteis
+### Sem Docker (desenvolvimento)
 
 ```bash
-# Ver logs de um serviço específico
-docker compose logs web
-docker compose logs grpc
-docker compose logs worker
+# Terminal 1 — Django
+cd api-web && pip install -r requirements.txt
+python manage.py migrate && python manage.py runserver
 
-# Ver todos os containers e seus status
-docker compose ps
+# Terminal 2 — gRPC
+cd grpc-service && pip install -r requirements.txt && python server.py
 
-# Parar tudo (mantém o banco de dados)
-docker compose down
-
-# Parar tudo E apagar o banco (recomeçar do zero)
-docker compose down -v
-```
-
-### Execução sem Docker (desenvolvimento local)
-
-```bash
-# Terminal 1 — servidor gRPC
-cd grpc-service
-pip install -r requirements.txt
-python server.py
-
-# Terminal 2 — aplicação Django
-cd api-web
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py seed
-python manage.py runserver
-
-# Terminal 3 — worker RabbitMQ
-cd worker
-pip install -r requirements.txt
-python worker.py
-
-# Pré-requisito: RabbitMQ rodando localmente (localhost:5672, guest/guest)
+# Terminal 3 — Worker
+cd worker && pip install -r requirements.txt && python worker.py
 ```
 
 ---
 
-## 10. Telas do Sistema
+## 14. Telas do Sistema
 
 ### Lista de Livros
 
 ![Lista de Livros](screenshots/02_livros.png)
 
-*Tela principal do catálogo de livros. Exibe título, autor, categoria, ano, total de exemplares e exemplares disponíveis em tempo real. Conta com busca por título e paginação de 10 itens.*
-
----
-
-### Cadastro de Livro
-
-![Cadastro de Livro](screenshots/03_livro_novo.png)
-
-*Formulário de cadastro de novo livro. Campos: título, ISBN, ano, autor, categoria e total de exemplares.*
-
----
-
-### Lista de Autores
-
-![Lista de Autores](screenshots/04_autores.png)
-
-*Gerenciamento de autores com opções de editar e excluir.*
-
----
-
-### Lista de Leitores
-
-![Lista de Leitores](screenshots/06_leitores.png)
-
-*Cadastro de leitores com nome, e-mail e matrícula.*
-
----
-
-### Lista de Empréstimos
-
-![Lista de Empréstimos](screenshots/07_emprestimos.png)
-
-*Lista de empréstimos com status (ativo, devolvido, atrasado). A detecção de atraso é automática: ao abrir a tela, o sistema verifica todos os empréstimos ativos com data vencida e atualiza o status.*
+*12.044 livros do acervo real da FEMA. Exibe Tombo Inicial, Tombo Exemplar, CDD, número de exemplares e disponibilidade. Busca por título, chapa ou tombo; ordenação clicável em todas as colunas.*
 
 ---
 
@@ -519,15 +442,7 @@ python worker.py
 
 ![Novo Empréstimo](screenshots/08_emprestimo_novo.png)
 
-*Formulário de novo empréstimo. Livros sem exemplares disponíveis aparecem desabilitados no select. Ao submeter, o Django chama o serviço gRPC para verificar disponibilidade e registrar o empréstimo.*
-
----
-
-### Notificações
-
-![Notificações](screenshots/09_notificacoes.png)
-
-*Notificações geradas automaticamente pelo worker RabbitMQ. Cada empréstimo e devolução gera uma mensagem na fila que o worker consome e persiste como Notificacao no banco.*
+*Ao submeter, o Django chama o serviço gRPC para verificar disponibilidade e registrar o empréstimo. Livros indisponíveis aparecem desabilitados no select.*
 
 ---
 
@@ -535,7 +450,7 @@ python worker.py
 
 ![Admin](screenshots/10_admin.png)
 
-*Interface administrativa do Django. Permite gerenciar todos os models diretamente, útil para inspecionar dados durante o desenvolvimento.*
+*Interface administrativa do Django — gerenciamento completo de todos os models.*
 
 ---
 
@@ -543,35 +458,38 @@ python worker.py
 
 ![RabbitMQ](screenshots/11_rabbitmq.png)
 
-*Painel de gerenciamento do RabbitMQ (http://localhost:15672). Mostra a fila `notificacoes`, conexões ativas e estatísticas de mensagens publicadas/consumidas.*
+*Painel de gerenciamento do RabbitMQ. Mostra a fila `notificacoes`, conexões ativas e estatísticas de mensagens.*
 
 ---
 
-## 11. Conclusão e Aprendizados
+## 15. Conclusão e Aprendizados
 
-O projeto BiblioDist demonstrou na prática a integração dos três paradigmas de comunicação distribuída mais utilizados na indústria:
+O BiblioDist demonstrou na prática **6 dos conceitos** do trabalho de Sistemas Distribuídos:
 
-### O que foi implementado
+| Conceito | Implementação |
+|---|---|
+| Docker | 6 containers orquestrados com Compose |
+| Webservice REST | Django (servidor) + API FEMA (cliente) |
+| SOA | 3 serviços com contratos bem definidos (HTTP, gRPC, AMQP) |
+| Microserviços | web, grpc, worker — independentes e com fallback |
+| DevOps | GitHub + Coolify, infra como código |
+| Computação em Nuvem | Deploy no servidor do professor via Coolify |
 
-- **Sistema web completo** com Django, cobrindo o ciclo inteiro de uma biblioteca: livros, autores, categorias, leitores, empréstimos e notificações
-- **gRPC** como camada de serviço interno: o contrato é definido em `.proto`, os stubs são gerados automaticamente, e a comunicação é tipada e eficiente (Protocol Buffers vs JSON)
-- **RabbitMQ** para desacoplamento assíncrono: o Django não precisa esperar a notificação ser processada — ele publica na fila e continua. O worker processa no seu próprio ritmo
-- **Docker Compose** orquestrando 6 serviços: banco, broker, init container de migrations, e os três serviços da aplicação
+### Principais desafios técnicos
 
-### Desafios técnicos
-
-1. **Ordem de inicialização dos containers** — resolvido com healthchecks e a condição `service_completed_successfully` no serviço `migrate`
-2. **Namespace `google.protobuf`** — o `grpcio` depende do `protobuf`, mas é necessário declará-lo explicitamente no `requirements.txt` para garantir que o namespace esteja disponível no container
-3. **Bootstrap do Django ORM** nos serviços `grpc-service` e `worker` — ambos precisam do código de `api-web` para acessar os models. Resolvido copiando `api-web/` para o container com o path relativo correto
-4. **Fallbacks** — tanto o gRPC quanto o RabbitMQ têm fallback gracioso, garantindo que o sistema continue funcionando mesmo com falhas parciais
+1. **Ordem de inicialização dos containers** — resolvido com healthchecks e init container `migrate`
+2. **Fallback gracioso** — gRPC e RabbitMQ com degradação transparente ao usuário
+3. **Parser booleano** — implementado do zero (tokenizer + recursive descent parser) para suportar AND/OR/NOT, frases e prefixo
+4. **API não documentada da FEMA** — descoberta inspecionando requisições do app Angular via DevTools
+5. **Port conflict no Coolify** — Traefik já usa porta 8000; solução foi remover o `ports` e deixar o proxy interno rotear
 
 ### Aprendizados
 
-- **gRPC vs REST**: gRPC é mais eficiente para comunicação interna entre serviços (binário, tipado, streaming), enquanto REST/HTTP é mais adequado para APIs públicas
-- **Mensageria assíncrona**: o desacoplamento via fila permite que o serviço produtor e consumidor evoluam independentemente e toleram falhas um do outro
-- **Containerização**: Docker Compose simplifica enormemente a orquestração de múltiplos serviços, reproduzindo em qualquer máquina o mesmo ambiente de execução
-- **Padrão de init container**: separar a migração do banco em um container dedicado é uma prática essencial para evitar condições de corrida na inicialização
+- **gRPC vs REST**: Protocol Buffers são mais eficientes para comunicação interna (binário, tipado), REST é mais adequado para APIs públicas
+- **Mensageria assíncrona**: o desacoplamento via fila permite que produtor e consumidor evoluam independentemente e toleram falhas mútuos
+- **Containerização**: Docker Compose reproduz fielmente o ambiente em qualquer máquina, eliminando o "funciona no meu PC"
+- **Deploy em nuvem**: Coolify abstrai a complexidade de configurar Nginx, certificados SSL e CI/CD, mantendo o controle sobre a infraestrutura
 
 ---
 
-*Relatório gerado como parte da avaliação da disciplina de Sistemas Distribuídos — FEMA, 2026.*
+*Relatório gerado como parte da avaliação da disciplina de Sistemas Distribuídos — FEMA, Novembro de 2026.*
