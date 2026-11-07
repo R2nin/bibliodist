@@ -36,7 +36,7 @@ PAGINA_PUBLICA = "https://cepein.fema.edu.br/aplicacoes/extra-fema/consulta-acer
 
 PAGE_SIZE = 100
 MAX_PAGINAS = 50            # trava de segurança: no máximo 5.000 registros por consulta
-TIMEOUT = 20
+TIMEOUT = 5
 CACHE_TTL = 60 * 60         # 1 h — evita martelar o servidor da instituição
 
 HEADERS = {
@@ -199,7 +199,7 @@ def _lista(caminho: str, chave_item: str, fallback: list[str]) -> list[str]:
             dados = _get(caminho)
             valores = [d[chave_item] for d in dados if d.get(chave_item)]
             cache.set(chave, valores, CACHE_TTL * 24)
-        except (AcervoIndisponivel, KeyError, TypeError):
+        except Exception:
             return fallback
     return valores or fallback
 
