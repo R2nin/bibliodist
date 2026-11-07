@@ -41,7 +41,7 @@ def _criterios(get) -> Criterios:
 
 def prisma_busca(request):
     g = request.GET
-    primeira_visita = "q" not in g
+    primeira_visita = "q" not in g and not g.get("orientador", "").strip()
     crit = _criterios(g)
     if primeira_visita:
         crit.exigir_pdf = True          # padrão do formulário

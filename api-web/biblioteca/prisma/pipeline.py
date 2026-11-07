@@ -80,13 +80,16 @@ class ResultadoPrisma:
 
 def executar(criterios: Criterios, buscar=None) -> ResultadoPrisma:
     buscar = buscar or acervo_fema.buscar
-    arvore = parse(criterios.expressao)
-    termos = list(dict.fromkeys(t for t in arvore.termos_positivos() if t.strip()))
+    expressao_vazia = not criterios.expressao.strip()
+    arvore = None if expressao_vazia else parse(criterios.expressao)
+    termos = [] if expressao_vazia else list(dict.fromkeys(
+        t for t in arvore.termos_positivos() if t.strip()
+    ))
 
     # ── 1. Identificação ────────────────────────────────────────────────────
     consultas: dict[str, int] = {}
     brutos: list[acervo_fema.Trabalho] = []
-    if criterios.modo_amplo:
+    if expressao_vazia or criterios.modo_amplo:
         lote = buscar("", tipo=criterios.tipo, curso=criterios.curso)
         consultas["(acervo completo)"] = len(lote)
         brutos.extend(lote)
@@ -102,7 +105,7 @@ def executar(criterios: Criterios, buscar=None) -> ResultadoPrisma:
 
     res = ResultadoPrisma(
         criterios=criterios,
-        expressao_interpretada=str(arvore),
+        expressao_interpretada="(todos os trabalhos)" if expressao_vazia else str(arvore),
         consultas=consultas,
         identificados=len(brutos),
         duplicados=len(brutos) - len(unicos),
@@ -113,7 +116,7 @@ def executar(criterios: Criterios, buscar=None) -> ResultadoPrisma:
     orientador_norm = normalizar_texto(criterios.orientador) if criterios.orientador.strip() else ""
     triados_ok = []
     for t in unicos.values():
-        if not arvore.avaliar(normalizar_texto(t.texto_triagem)):
+        if arvore is not None and not arvore.avaliar(normalizar_texto(t.texto_triagem)):
             res.excl_triagem_expressao += 1
             res.excluidos.append(Exclusao(t, "Triagem", "Não atende à expressão de busca"))
             continue
