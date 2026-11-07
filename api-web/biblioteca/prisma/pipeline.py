@@ -32,6 +32,7 @@ class Criterios:
     exigir_pdf: bool = True
     exigir_resumo: bool = False
     modo_amplo: bool = False
+    orientador: str = ""
 
 
 @dataclass
@@ -109,6 +110,7 @@ def executar(criterios: Criterios, buscar=None) -> ResultadoPrisma:
     )
 
     # ── 2. Triagem ──────────────────────────────────────────────────────────
+    orientador_norm = normalizar_texto(criterios.orientador) if criterios.orientador.strip() else ""
     triados_ok = []
     for t in unicos.values():
         if not arvore.avaliar(normalizar_texto(t.texto_triagem)):
@@ -123,6 +125,11 @@ def executar(criterios: Criterios, buscar=None) -> ResultadoPrisma:
         if fora:
             res.excl_triagem_periodo += 1
             res.excluidos.append(Exclusao(t, "Triagem", f"Fora do período (ano: {t.ano or 'n/d'})"))
+            continue
+        if orientador_norm and not any(
+            orientador_norm in normalizar_texto(o) for o in t.orientadores
+        ):
+            res.excluidos.append(Exclusao(t, "Triagem", f"Orientador não corresponde ao filtro"))
             continue
         triados_ok.append(t)
 

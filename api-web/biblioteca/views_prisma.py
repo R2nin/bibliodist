@@ -35,6 +35,7 @@ def _criterios(get) -> Criterios:
         exigir_pdf=get.get("exigir_pdf") == "on",
         exigir_resumo=get.get("exigir_resumo") == "on",
         modo_amplo=get.get("modo_amplo") == "on",
+        orientador=get.get("orientador", "").strip(),
     )
 
 
