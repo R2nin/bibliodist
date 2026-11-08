@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2>Leitores</h2>
-  <a href="{% url 'leitor_create' %}" class="btn btn-primary">+ Novo Leitor</a>
+  {% if request.user.is_staff %}<a href="{% url 'leitor_create' %}" class="btn btn-primary">+ Novo Leitor</a>{% endif %}
 </div>
 
 <div class="card shadow-sm">
@@ -19,8 +19,10 @@
           <td>{{ leitor.email }}</td>
           <td>{{ leitor.matricula }}</td>
           <td>
+            {% if request.user.is_staff %}
             <a href="{% url 'leitor_edit' leitor.pk %}" class="btn btn-sm btn-outline-secondary">Editar</a>
             <a href="{% url 'leitor_delete' leitor.pk %}" class="btn btn-sm btn-outline-danger">Excluir</a>
+            {% else %}<span class="text-muted">—</span>{% endif %}
           </td>
         </tr>
         {% empty %}

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
   <h2>Empréstimos</h2>
-  <a href="{% url 'emprestimo_create' %}" class="btn btn-primary">+ Novo Empréstimo</a>
+  {% if request.user.is_staff %}<a href="{% url 'emprestimo_create' %}" class="btn btn-primary">+ Novo Empréstimo</a>{% endif %}
 </div>
 
 <form method="get" class="mb-3 d-flex flex-wrap gap-2 align-items-center">
@@ -44,7 +44,7 @@
             {% endif %}
           </td>
           <td>
-            {% if emp.status == "ativo" %}
+            {% if request.user.is_staff and emp.status == "ativo" %}
               <a href="{% url 'emprestimo_devolver' emp.pk %}" class="btn btn-sm btn-warning text-white">Devolver</a>
             {% else %}
               <span class="text-muted">—</span>

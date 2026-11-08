@@ -1,8 +1,10 @@
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
+from .decorators import staff_required
 from .models import Autor, Categoria, Emprestimo, Leitor, Livro, Notificacao
 from . import grpc_client
 from . import mq_publisher
@@ -10,6 +12,7 @@ from . import mq_publisher
 
 # ─── Home ────────────────────────────────────────────────────────────────────
 
+@login_required
 def home(request):
     from .models import Livro, Leitor, Emprestimo
     ctx = {
@@ -24,6 +27,7 @@ def home(request):
 
 # ─── Autores ─────────────────────────────────────────────────────────────────
 
+@login_required
 def autor_list(request):
     qs = Autor.objects.all()
     paginator = Paginator(qs, 10)
@@ -31,6 +35,7 @@ def autor_list(request):
     return render(request, "biblioteca/autor_list.html", {"page_obj": page})
 
 
+@staff_required
 def autor_create(request):
     if request.method == "POST":
         nome = request.POST.get("nome", "").strip()
@@ -42,6 +47,7 @@ def autor_create(request):
     return render(request, "biblioteca/autor_form.html", {"titulo": "Novo Autor"})
 
 
+@staff_required
 def autor_edit(request, pk):
     autor = get_object_or_404(Autor, pk=pk)
     if request.method == "POST":
@@ -55,6 +61,7 @@ def autor_edit(request, pk):
     return render(request, "biblioteca/autor_form.html", {"titulo": "Editar Autor", "obj": autor})
 
 
+@staff_required
 def autor_delete(request, pk):
     autor = get_object_or_404(Autor, pk=pk)
     if request.method == "POST":
@@ -69,6 +76,7 @@ def autor_delete(request, pk):
 
 # ─── Categorias ──────────────────────────────────────────────────────────────
 
+@login_required
 def categoria_list(request):
     qs = Categoria.objects.all()
     paginator = Paginator(qs, 10)
@@ -76,6 +84,7 @@ def categoria_list(request):
     return render(request, "biblioteca/categoria_list.html", {"page_obj": page})
 
 
+@staff_required
 def categoria_create(request):
     if request.method == "POST":
         nome = request.POST.get("nome", "").strip()
@@ -87,6 +96,7 @@ def categoria_create(request):
     return render(request, "biblioteca/categoria_form.html", {"titulo": "Nova Categoria"})
 
 
+@staff_required
 def categoria_edit(request, pk):
     categoria = get_object_or_404(Categoria, pk=pk)
     if request.method == "POST":
@@ -100,6 +110,7 @@ def categoria_edit(request, pk):
     return render(request, "biblioteca/categoria_form.html", {"titulo": "Editar Categoria", "obj": categoria})
 
 
+@staff_required
 def categoria_delete(request, pk):
     categoria = get_object_or_404(Categoria, pk=pk)
     if request.method == "POST":
@@ -114,6 +125,7 @@ def categoria_delete(request, pk):
 
 # ─── Livros ──────────────────────────────────────────────────────────────────
 
+@login_required
 def livro_list(request):
     q = request.GET.get("q", "").strip()
     sort = request.GET.get("sort", "titulo")
@@ -154,6 +166,7 @@ def livro_list(request):
     })
 
 
+@staff_required
 def livro_create(request):
     autores = Autor.objects.all()
     categorias = Categoria.objects.all()
@@ -193,6 +206,7 @@ def livro_create(request):
     })
 
 
+@staff_required
 def livro_edit(request, pk):
     livro = get_object_or_404(Livro, pk=pk)
     autores = Autor.objects.all()
@@ -219,6 +233,7 @@ def livro_edit(request, pk):
     })
 
 
+@staff_required
 def livro_delete(request, pk):
     livro = get_object_or_404(Livro, pk=pk)
     if request.method == "POST":
@@ -233,6 +248,7 @@ def livro_delete(request, pk):
 
 # ─── Leitores ────────────────────────────────────────────────────────────────
 
+@login_required
 def leitor_list(request):
     qs = Leitor.objects.all()
     paginator = Paginator(qs, 10)
@@ -240,6 +256,7 @@ def leitor_list(request):
     return render(request, "biblioteca/leitor_list.html", {"page_obj": page})
 
 
+@staff_required
 def leitor_create(request):
     if request.method == "POST":
         nome = request.POST.get("nome", "").strip()
@@ -267,6 +284,7 @@ def leitor_create(request):
     return render(request, "biblioteca/leitor_form.html", {"titulo": "Novo Leitor"})
 
 
+@staff_required
 def leitor_edit(request, pk):
     leitor = get_object_or_404(Leitor, pk=pk)
     if request.method == "POST":
@@ -279,6 +297,7 @@ def leitor_edit(request, pk):
     return render(request, "biblioteca/leitor_form.html", {"titulo": "Editar Leitor", "obj": leitor})
 
 
+@staff_required
 def leitor_delete(request, pk):
     leitor = get_object_or_404(Leitor, pk=pk)
     if request.method == "POST":
@@ -299,6 +318,7 @@ def _atualizar_atrasos():
     Emprestimo.objects.filter(status="ativo", data_prevista__lt=hoje).update(status="atrasado")
 
 
+@login_required
 def emprestimo_list(request):
     _atualizar_atrasos()
     qs = Emprestimo.objects.select_related("livro", "leitor")
@@ -313,6 +333,7 @@ def emprestimo_list(request):
     })
 
 
+@staff_required
 def emprestimo_create(request):
     _atualizar_atrasos()
     livros = Livro.objects.select_related("autor").order_by("titulo")
@@ -402,6 +423,7 @@ def emprestimo_create(request):
     })
 
 
+@staff_required
 def emprestimo_devolver(request, pk):
     emp = get_object_or_404(Emprestimo, pk=pk)
     if emp.status != "ativo":

@@ -188,8 +188,26 @@
           <a class="nav-link {% if request.resolver_match.url_name == 'prisma_busca' %}active{% endif %}"
              href="{% url 'prisma_busca' %}"><i class="bi bi-funnel"></i>Revisão PRISMA</a>
         </li>
+        {% if user.is_superuser %}
+        <li class="nav-item ms-2">
+          <a class="nav-link {% if request.resolver_match.url_name == 'usuario_list' %}active{% endif %}"
+             href="{% url 'usuario_list' %}"><i class="bi bi-people-fill"></i>Usuários</a>
+        </li>
+        {% endif %}
+        {% if user.is_staff %}
         <li class="nav-item ms-2">
           <a class="nav-link" href="/admin/" target="_blank"><i class="bi bi-gear"></i>Admin</a>
+        </li>
+        {% endif %}
+        <li class="nav-item ms-2 d-flex align-items-center gap-2">
+          <span class="text-white-50 small" style="white-space:nowrap;">
+            <i class="bi bi-person-circle me-1"></i>{{ user.get_short_name|default:user.username }}
+            {% if user.is_superuser %}<span class="badge bg-danger ms-1" style="font-size:.65rem;">super</span>
+            {% elif user.is_staff %}<span class="badge bg-primary ms-1" style="font-size:.65rem;">admin</span>{% endif %}
+          </span>
+          <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm py-0 px-2" style="font-size:.8rem;">
+            <i class="bi bi-box-arrow-right"></i>
+          </a>
         </li>
       </ul>
     </div>

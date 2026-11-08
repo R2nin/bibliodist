@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Usuários — BiblioDist{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2 class="fema-marker">Usuários</h2>
+  <a href="{% url 'usuario_create' %}" class="btn btn-primary">
+    <i class="bi bi-person-plus me-1"></i>Novo Usuário
+  </a>
+</div>
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-striped table-hover mb-0 align-middle">
+      <thead class="table-dark">
+        <tr>
+          <th>Usuário</th>
+          <th>Nome</th>
+          <th>Perfil</th>
+          <th style="width:160px;">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr>
+          <td><i class="bi bi-person me-1 text-muted"></i>{{ u.username }}</td>
+          <td>{{ u.get_full_name|default:"—" }}</td>
+          <td>
+            {% if u.is_superuser %}
+              <span class="badge bg-danger">Superadmin</span>
+            {% elif u.is_staff %}
+              <span class="badge bg-primary">Admin</span>
+            {% else %}
+              <span class="badge bg-secondary">Consulta</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not u.is_superuser %}
+              <a href="{% url 'usuario_reset_senha' u.pk %}" class="btn btn-sm btn-outline-warning">
+                <i class="bi bi-key me-1"></i>Resetar senha
+              </a>
+            {% else %}
+              <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="text-center text-muted py-4">Nenhum usuário cadastrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

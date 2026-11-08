@@ -2,6 +2,7 @@
 import csv
 from datetime import date
 
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import render
 
@@ -39,6 +40,7 @@ def _criterios(get) -> Criterios:
     )
 
 
+@login_required
 def prisma_busca(request):
     g = request.GET
     primeira_visita = "q" not in g and not g.get("orientador", "").strip()
@@ -76,6 +78,7 @@ def prisma_busca(request):
     return render(request, "biblioteca/prisma.html", ctx)
 
 
+@login_required
 def prisma_exportar_csv(request):
     crit = _criterios(request.GET)
     try:

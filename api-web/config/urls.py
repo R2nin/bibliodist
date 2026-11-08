@@ -1,11 +1,21 @@
 from django.contrib import admin
+from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from biblioteca import views, views_prisma
+from biblioteca import views, views_prisma, views_usuarios
 
 urlpatterns = [
     path("", views.home, name="home"),
     path("admin/", admin.site.urls),
+
+    # Autenticação
+    path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
+    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+
+    # Usuários (superuser)
+    path("usuarios/", views_usuarios.usuario_list, name="usuario_list"),
+    path("usuarios/novo/", views_usuarios.usuario_create, name="usuario_create"),
+    path("usuarios/<int:pk>/reset/", views_usuarios.usuario_reset_senha, name="usuario_reset_senha"),
 
     # Autores
     path("autores/", views.autor_list, name="autor_list"),

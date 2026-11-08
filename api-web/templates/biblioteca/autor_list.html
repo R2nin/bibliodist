@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2>Autores</h2>
-  <a href="{% url 'autor_create' %}" class="btn btn-primary">+ Novo Autor</a>
+  {% if request.user.is_staff %}<a href="{% url 'autor_create' %}" class="btn btn-primary">+ Novo Autor</a>{% endif %}
 </div>
 
 <div class="card shadow-sm">
@@ -18,8 +18,10 @@
           <td>{{ autor.nome }}</td>
           <td>{{ autor.livros.count }}</td>
           <td>
+            {% if request.user.is_staff %}
             <a href="{% url 'autor_edit' autor.pk %}" class="btn btn-sm btn-outline-secondary">Editar</a>
             <a href="{% url 'autor_delete' autor.pk %}" class="btn btn-sm btn-outline-danger">Excluir</a>
+            {% else %}<span class="text-muted">—</span>{% endif %}
           </td>
         </tr>
         {% empty %}
