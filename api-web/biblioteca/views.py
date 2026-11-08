@@ -130,7 +130,7 @@ def livro_list(request):
 
     order_field = f"-{sort}" if direcao == "desc" else sort
 
-    qs = Livro.objects.select_related("autor", "categoria")
+    qs = Livro.objects.select_related("autor").prefetch_related("categorias")
     if q:
         qs = qs.filter(
             titulo__icontains=q
@@ -163,7 +163,7 @@ def livro_create(request):
         isbn = request.POST.get("isbn", "").strip()
         ano = request.POST.get("ano", "").strip()
         autor_id = request.POST.get("autor")
-        categoria_id = request.POST.get("categoria")
+        categorias_ids = request.POST.getlist("categorias")
         total = request.POST.get("total_exemplares", "1").strip()
 
         if not titulo:
@@ -175,14 +175,14 @@ def livro_create(request):
             for e in erros:
                 messages.error(request, e)
         else:
-            Livro.objects.create(
+            livro = Livro.objects.create(
                 titulo=titulo,
                 isbn=isbn or None,
                 ano=int(ano) if ano.isdigit() else None,
                 autor_id=autor_id or None,
-                categoria_id=categoria_id or None,
                 total_exemplares=int(total) if total.isdigit() else 1,
             )
+            livro.categorias.set(categorias_ids)
             messages.success(request, "Livro criado com sucesso.")
             return redirect("livro_list")
 
@@ -204,11 +204,11 @@ def livro_edit(request, pk):
         if ano.isdigit():
             livro.ano = int(ano)
         livro.autor_id = request.POST.get("autor", livro.autor_id)
-        livro.categoria_id = request.POST.get("categoria", livro.categoria_id)
         total = request.POST.get("total_exemplares", "").strip()
         if total.isdigit():
             livro.total_exemplares = int(total)
         livro.save()
+        livro.categorias.set(request.POST.getlist("categorias"))
         messages.success(request, "Livro atualizado.")
         return redirect("livro_list")
     return render(request, "biblioteca/livro_form.html", {

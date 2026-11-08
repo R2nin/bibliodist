@@ -31,7 +31,7 @@ class Livro(models.Model):
     isbn = models.CharField(max_length=20, unique=True, null=True, blank=True)
     ano = models.PositiveIntegerField(null=True, blank=True)
     autor = models.ForeignKey(Autor, on_delete=models.SET_NULL, null=True, blank=True, related_name="livros")
-    categoria = models.ForeignKey(Categoria, on_delete=models.SET_NULL, null=True, blank=True, related_name="livros")
+    categorias = models.ManyToManyField(Categoria, blank=True, related_name="livros")
     total_exemplares = models.PositiveIntegerField(default=1)
     tombo_inicial = models.CharField(max_length=20, null=True, blank=True, db_index=True)
     tombo_exemplar = models.CharField(max_length=20, null=True, blank=True)

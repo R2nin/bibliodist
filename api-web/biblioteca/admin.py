@@ -17,9 +17,10 @@ class CategoriaAdmin(admin.ModelAdmin):
 
 @admin.register(Livro)
 class LivroAdmin(admin.ModelAdmin):
-    list_display = ("titulo", "autor", "categoria", "ano", "isbn", "total_exemplares")
-    list_filter = ("categoria", "autor")
+    list_display = ("titulo", "autor", "ano", "isbn", "total_exemplares")
+    list_filter = ("categorias", "autor")
     search_fields = ("titulo", "isbn")
+    filter_horizontal = ("categorias",)
 
 
 @admin.register(Leitor)

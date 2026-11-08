@@ -37,13 +37,13 @@
               </select>
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label">Categoria *</label>
-              <select name="categoria" class="form-select" required>
-                <option value="">— selecione —</option>
+              <label class="form-label">Categorias</label>
+              <select name="categorias" class="form-select" multiple size="6">
                 {% for c in categorias %}
-                  <option value="{{ c.pk }}" {% if obj and obj.categoria_id == c.pk %}selected{% endif %}>{{ c.nome }}</option>
+                  <option value="{{ c.pk }}" {% if obj and c in obj.categorias.all %}selected{% endif %}>{{ c.nome }}</option>
                 {% endfor %}
               </select>
+              <div class="form-text">Segure Ctrl para selecionar mais de uma.</div>
             </div>
           </div>
           <div class="d-flex gap-2">
