@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}{{ livro.titulo }} — BiblioDist{% endblock %}
+{% block content %}
+
+<div class="mb-3">
+  <a href="{% url 'livro_list' %}" class="text-decoration-none text-muted">
+    <i class="bi bi-arrow-left me-1"></i>Voltar para Livros
+  </a>
+</div>
+
+<div class="row g-4">
+
+  <!-- Coluna principal -->
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+
+        <h2 class="fw-bold mb-1" style="color:var(--fema-blue);">{{ livro.titulo }}</h2>
+
+        {% if livro.autor %}
+          <p class="text-muted mb-3"><i class="bi bi-person me-1"></i>{{ livro.autor.nome }}</p>
+        {% endif %}
+
+        {% if livro.descricao %}
+          <hr>
+          <h6 class="text-uppercase fw-bold mb-2" style="color:var(--fema-orange);letter-spacing:.06em;">
+            Resumo
+          </h6>
+          <p style="line-height:1.75;text-align:justify;">{{ livro.descricao }}</p>
+        {% endif %}
+
+        {% if livro.categorias.all %}
+          <hr>
+          <h6 class="text-uppercase fw-bold mb-2" style="color:var(--fema-orange);letter-spacing:.06em;">
+            Categorias
+          </h6>
+          <div class="d-flex flex-wrap gap-2">
+            {% for cat in livro.categorias.all %}
+              <span class="badge rounded-pill" style="background:var(--fema-blue);font-size:.8rem;">{{ cat.nome }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Coluna lateral com metadados -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <i class="bi bi-info-circle me-1"></i>Informações
+      </div>
+      <ul class="list-group list-group-flush">
+
+        <li class="list-group-item d-flex justify-content-between align-items-start py-3">
+          <span class="text-muted small">Disponíveis</span>
+          {% with disp=livro.exemplares_disponiveis %}
+            <span class="badge {% if disp > 0 %}bg-success{% else %}bg-danger{% endif %} fs-6">
+              {{ disp }} / {{ livro.total_exemplares }}
+            </span>
+          {% endwith %}
+        </li>
+
+        {% if livro.isbn %}
+        <li class="list-group-item d-flex justify-content-between py-3">
+          <span class="text-muted small">ISBN</span>
+          <span class="fw-semibold">{{ livro.isbn }}</span>
+        </li>
+        {% endif %}
+
+        {% if livro.ano %}
+        <li class="list-group-item d-flex justify-content-between py-3">
+          <span class="text-muted small">Ano</span>
+          <span class="fw-semibold">{{ livro.ano }}</span>
+        </li>
+        {% endif %}
+
+        {% if livro.classificacao_cdd %}
+        <li class="list-group-item d-flex justify-content-between py-3">
+          <span class="text-muted small">CDD</span>
+          <span class="fw-semibold">{{ livro.classificacao_cdd }}</span>
+        </li>
+        {% endif %}
+
+        {% if livro.tombo_inicial %}
+        <li class="list-group-item d-flex justify-content-between py-3">
+          <span class="text-muted small">Tombo</span>
+          <span class="fw-semibold">{{ livro.tombo_inicial }}</span>
+        </li>
+        {% endif %}
+
+        {% if livro.chapa %}
+        <li class="list-group-item d-flex justify-content-between py-3">
+          <span class="text-muted small">Grupo/Chapa</span>
+          <span class="fw-semibold">{{ livro.chapa }}</span>
+        </li>
+        {% endif %}
+
+        {% if livro.data_aquisicao %}
+        <li class="list-group-item d-flex justify-content-between py-3">
+          <span class="text-muted small">Aquisição</span>
+          <span class="fw-semibold">{{ livro.data_aquisicao|date:"d/m/Y" }}</span>
+        </li>
+        {% endif %}
+
+      </ul>
+    </div>
+
+    {% if request.user.is_staff %}
+    <div class="mt-3 d-flex gap-2">
+      <a href="{% url 'livro_edit' livro.pk %}" class="btn btn-outline-secondary flex-fill">
+        <i class="bi bi-pencil me-1"></i>Editar
+      </a>
+      <a href="{% url 'livro_delete' livro.pk %}" class="btn btn-outline-danger flex-fill">
+        <i class="bi bi-trash me-1"></i>Excluir
+      </a>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+{% endblock %}

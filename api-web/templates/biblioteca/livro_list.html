@@ -77,7 +77,9 @@
         <tr>
           <td class="text-nowrap">{{ livro.data_aquisicao|date:"d/m/Y"|default:"—" }}</td>
           <td class="text-nowrap">{{ livro.chapa|default:"—" }}</td>
-          <td style="white-space:normal;word-break:break-word;min-width:200px;">{{ livro.titulo }}</td>
+          <td style="white-space:normal;word-break:break-word;min-width:200px;">
+            <a href="{% url 'livro_detail' livro.pk %}" class="text-decoration-none fw-semibold">{{ livro.titulo }}</a>
+          </td>
           <td class="text-nowrap">{{ livro.tombo_inicial|default:"—" }}</td>
           <td class="text-nowrap">{{ livro.tombo_exemplar|default:"—" }}</td>
           <td class="text-nowrap">{{ livro.classificacao_cdd|default:"—" }}</td>

@@ -32,6 +32,7 @@ urlpatterns = [
     # Livros
     path("livros/buscar-isbn/", views.livro_buscar_isbn, name="livro_buscar_isbn"),
     path("livros/", views.livro_list, name="livro_list"),
+    path("livros/<int:pk>/", views.livro_detail, name="livro_detail"),
     path("livros/novo/", views.livro_create, name="livro_create"),
     path("livros/<int:pk>/editar/", views.livro_edit, name="livro_edit"),
     path("livros/<int:pk>/excluir/", views.livro_delete, name="livro_delete"),

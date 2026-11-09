@@ -123,7 +123,8 @@ def autor_create(request):
             messages.success(request, "Autor criado com sucesso.")
             return redirect("autor_list")
         messages.error(request, "Nome é obrigatório.")
-    return render(request, "biblioteca/autor_form.html", {"titulo": "Novo Autor"})
+    nome_sugerido = request.GET.get("nome", "")
+    return render(request, "biblioteca/autor_form.html", {"titulo": "Novo Autor", "nome_sugerido": nome_sugerido})
 
 
 @staff_required
@@ -243,6 +244,15 @@ def livro_list(request):
         "sort": sort,
         "dir": direcao,
     })
+
+
+@login_required
+def livro_detail(request, pk):
+    livro = get_object_or_404(
+        Livro.objects.select_related("autor").prefetch_related("categorias"),
+        pk=pk,
+    )
+    return render(request, "biblioteca/livro_detail.html", {"livro": livro})
 
 
 @staff_required
