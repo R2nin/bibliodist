@@ -67,6 +67,17 @@ def _buscar_open_library(isbn):
 
 
 @staff_required
+def logs(request):
+    qs = Notificacao.objects.select_related("leitor", "emprestimo__livro").order_by("-criada_em")
+    tipo = request.GET.get("tipo", "")
+    if tipo:
+        qs = qs.filter(tipo=tipo)
+    paginator = Paginator(qs, 25)
+    page = paginator.get_page(request.GET.get("page"))
+    return render(request, "biblioteca/logs.html", {"page_obj": page, "tipo": tipo})
+
+
+@staff_required
 def livro_buscar_isbn(request):
     isbn = request.GET.get("isbn", "").strip().replace("-", "").replace(" ", "")
     if not isbn:

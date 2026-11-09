@@ -36,12 +36,13 @@
           <div class="row">
             <div class="col-md-6 mb-3">
               <label class="form-label">Autor</label>
-              <select name="autor" class="form-select">
+              <select name="autor" id="id_autor" class="form-select">
                 <option value="">— selecione —</option>
                 {% for a in autores %}
                   <option value="{{ a.pk }}" {% if obj and obj.autor_id == a.pk %}selected{% endif %}>{{ a.nome }}</option>
                 {% endfor %}
               </select>
+              <div id="autor_hint" class="form-text"></div>
             </div>
             <div class="col-md-6 mb-3">
               <label class="form-label">Categorias</label>
@@ -89,8 +90,28 @@ document.getElementById('btn_buscar_isbn').addEventListener('click', function ()
       if (d.ano)       document.querySelector('[name=ano]').value = d.ano;
       if (d.descricao) document.getElementById('id_descricao').value = d.descricao;
 
+      // Tenta auto-selecionar o autor no dropdown
+      const autorHint = document.getElementById('autor_hint');
+      autorHint.textContent = '';
+      if (d.autores) {
+        const sel = document.getElementById('id_autor');
+        const apiNome = d.autores.toLowerCase();
+        let encontrado = false;
+        for (const opt of sel.options) {
+          if (opt.text.toLowerCase().includes(apiNome) || apiNome.includes(opt.text.toLowerCase().replace('—', '').trim())) {
+            opt.selected = true;
+            encontrado = true;
+            break;
+          }
+        }
+        if (!encontrado) {
+          autorHint.innerHTML = `Autor da API: <strong>${d.autores}</strong> — não cadastrado. <a href="/autores/novo/" target="_blank">Cadastrar agora</a>`;
+          autorHint.style.color = '#e67e22';
+        }
+      }
+
       const semDesc = !d.descricao ? ' (resumo não disponível nesta API)' : '';
-      status.textContent = 'Dados preenchidos' + (d.autores ? ` — autor: ${d.autores}` : '') + semDesc + '.';
+      status.textContent = 'Dados preenchidos' + semDesc + '.';
       status.style.color = '#198754';
     })
     .catch(() => { status.textContent = 'Erro ao conectar.'; status.style.color = '#dc3545'; })

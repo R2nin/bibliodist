@@ -47,6 +47,9 @@ urlpatterns = [
     path("emprestimos/novo/", views.emprestimo_create, name="emprestimo_create"),
     path("emprestimos/<int:pk>/devolver/", views.emprestimo_devolver, name="emprestimo_devolver"),
 
+    # Logs
+    path("logs/", views.logs, name="logs"),
+
     # Revisão sistemática PRISMA sobre o Acervo Digital da FEMA
     path("prisma/", views_prisma.prisma_busca, name="prisma_busca"),
     path("prisma/exportar.csv", views_prisma.prisma_exportar_csv, name="prisma_exportar_csv"),
