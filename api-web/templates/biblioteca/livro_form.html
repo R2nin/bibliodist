@@ -35,8 +35,8 @@
           </div>
           <div class="row">
             <div class="col-md-6 mb-3">
-              <label class="form-label">Autor *</label>
-              <select name="autor" class="form-select" required>
+              <label class="form-label">Autor</label>
+              <select name="autor" class="form-select">
                 <option value="">— selecione —</option>
                 {% for a in autores %}
                   <option value="{{ a.pk }}" {% if obj and obj.autor_id == a.pk %}selected{% endif %}>{{ a.nome }}</option>
@@ -89,7 +89,8 @@ document.getElementById('btn_buscar_isbn').addEventListener('click', function ()
       if (d.ano)       document.querySelector('[name=ano]').value = d.ano;
       if (d.descricao) document.getElementById('id_descricao').value = d.descricao;
 
-      status.textContent = 'Dados preenchidos' + (d.autores ? ` — autor: ${d.autores}` : '') + '.';
+      const semDesc = !d.descricao ? ' (resumo não disponível nesta API)' : '';
+      status.textContent = 'Dados preenchidos' + (d.autores ? ` — autor: ${d.autores}` : '') + semDesc + '.';
       status.style.color = '#198754';
     })
     .catch(() => { status.textContent = 'Erro ao conectar.'; status.style.color = '#dc3545'; })
