@@ -105,7 +105,7 @@ document.getElementById('btn_buscar_isbn').addEventListener('click', function ()
           }
         }
         if (!encontrado) {
-          autorHint.innerHTML = `Autor da API: <strong>${d.autores}</strong> — não cadastrado. <a href="/autores/novo/" target="_blank">Cadastrar agora</a>`;
+          autorHint.innerHTML = `Autor da API: <strong>${d.autores}</strong> — não cadastrado. <a href="/autores/novo/?nome=${encodeURIComponent(d.autores)}" target="_blank">Cadastrar agora</a>`;
           autorHint.style.color = '#e67e22';
         }
       }
