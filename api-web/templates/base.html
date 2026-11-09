@@ -211,9 +211,13 @@
             {% if user.is_superuser %}<span class="badge bg-danger ms-1" style="font-size:.65rem;">super</span>
             {% elif user.is_staff %}<span class="badge bg-primary ms-1" style="font-size:.65rem;">admin</span>{% endif %}
           </span>
-          <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm py-0 px-2" style="font-size:.8rem;">
-            <i class="bi bi-box-arrow-right"></i>
-          </a>
+          <form method="post" action="{% url 'logout' %}" class="d-inline m-0">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-light btn-sm py-0 px-2" style="font-size:.8rem;"
+                    title="Sair">
+              <i class="bi bi-box-arrow-right"></i>
+            </button>
+          </form>
         </li>
       </ul>
     </div>
