@@ -1,6 +1,9 @@
+import requests as _requests
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -8,6 +11,71 @@ from .decorators import staff_required
 from .models import Autor, Categoria, Emprestimo, Leitor, Livro, Notificacao
 from . import grpc_client
 from . import mq_publisher
+
+
+# ─── ISBN lookup ─────────────────────────────────────────────────────────────
+
+def _buscar_google_books(isbn):
+    """Retorna dict {titulo, autores, descricao, ano} ou None."""
+    try:
+        r = _requests.get(
+            "https://www.googleapis.com/books/v1/volumes",
+            params={"q": f"isbn:{isbn}"},
+            timeout=5,
+        )
+        r.raise_for_status()
+        items = r.json().get("items", [])
+        if not items:
+            return None
+        info = items[0].get("volumeInfo", {})
+        return {
+            "titulo": info.get("title", ""),
+            "autores": ", ".join(info.get("authors", [])),
+            "descricao": info.get("description", ""),
+            "ano": str(info.get("publishedDate", ""))[:4],
+        }
+    except Exception:
+        return None
+
+
+def _buscar_open_library(isbn):
+    """Retorna dict {titulo, autores, descricao, ano} ou None."""
+    try:
+        r = _requests.get(
+            "https://openlibrary.org/api/books",
+            params={"bibkeys": f"ISBN:{isbn}", "format": "json", "jscmd": "data"},
+            timeout=5,
+        )
+        r.raise_for_status()
+        data = r.json()
+        book = data.get(f"ISBN:{isbn}")
+        if not book:
+            return None
+        descricao = book.get("description", "")
+        if isinstance(descricao, dict):
+            descricao = descricao.get("value", "")
+        autores = ", ".join(a.get("name", "") for a in book.get("authors", []))
+        ano = str(book.get("publish_date", ""))[-4:]
+        return {
+            "titulo": book.get("title", ""),
+            "autores": autores,
+            "descricao": descricao,
+            "ano": ano if ano.isdigit() else "",
+        }
+    except Exception:
+        return None
+
+
+@staff_required
+def livro_buscar_isbn(request):
+    isbn = request.GET.get("isbn", "").strip().replace("-", "").replace(" ", "")
+    if not isbn:
+        return JsonResponse({"erro": "ISBN não informado."}, status=400)
+
+    dados = _buscar_google_books(isbn) or _buscar_open_library(isbn)
+    if not dados:
+        return JsonResponse({"erro": "Nenhum resultado encontrado para este ISBN."}, status=404)
+    return JsonResponse(dados)
 
 
 # ─── Home ────────────────────────────────────────────────────────────────────
@@ -178,6 +246,7 @@ def livro_create(request):
         autor_id = request.POST.get("autor")
         categorias_ids = request.POST.getlist("categorias")
         total = request.POST.get("total_exemplares", "1").strip()
+        descricao = request.POST.get("descricao", "").strip()
 
         if not titulo:
             erros.append("Título é obrigatório.")
@@ -194,6 +263,7 @@ def livro_create(request):
                 ano=int(ano) if ano.isdigit() else None,
                 autor_id=autor_id or None,
                 total_exemplares=int(total) if total.isdigit() else 1,
+                descricao=descricao or None,
             )
             livro.categorias.set(categorias_ids)
             messages.success(request, "Livro criado com sucesso.")
@@ -218,6 +288,7 @@ def livro_edit(request, pk):
         if ano.isdigit():
             livro.ano = int(ano)
         livro.autor_id = request.POST.get("autor", livro.autor_id)
+        livro.descricao = request.POST.get("descricao", "").strip() or None
         total = request.POST.get("total_exemplares", "").strip()
         if total.isdigit():
             livro.total_exemplares = int(total)

@@ -15,7 +15,14 @@
           <div class="row">
             <div class="col-md-6 mb-3">
               <label class="form-label">ISBN</label>
-              <input type="text" name="isbn" class="form-control" value="{{ obj.isbn|default:'' }}">
+              <div class="input-group">
+                <input type="text" name="isbn" id="id_isbn" class="form-control" value="{{ obj.isbn|default:'' }}">
+                <button type="button" class="btn btn-outline-secondary" id="btn_buscar_isbn"
+                        title="Buscar dados pelo ISBN">
+                  <i class="bi bi-search"></i> Buscar
+                </button>
+              </div>
+              <div id="isbn_status" class="form-text"></div>
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label">Ano</label>
@@ -46,6 +53,11 @@
               <div class="form-text">Segure Ctrl para selecionar mais de uma.</div>
             </div>
           </div>
+          <div class="mb-4">
+            <label class="form-label">Descrição / Resumo</label>
+            <textarea name="descricao" id="id_descricao" class="form-control" rows="5"
+                      placeholder="Resumo do livro (pode ser preenchido automaticamente pelo ISBN)">{{ obj.descricao|default:'' }}</textarea>
+          </div>
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary">Salvar</button>
             <a href="{% url 'livro_list' %}" class="btn btn-outline-secondary">Cancelar</a>
@@ -55,4 +67,33 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('btn_buscar_isbn').addEventListener('click', function () {
+  const isbn = document.getElementById('id_isbn').value.trim();
+  const status = document.getElementById('isbn_status');
+  if (!isbn) { status.textContent = 'Informe o ISBN antes de buscar.'; status.style.color = '#dc3545'; return; }
+
+  status.textContent = 'Buscando…';
+  status.style.color = '#6c757d';
+  this.disabled = true;
+
+  fetch(`{% url 'livro_buscar_isbn' %}?isbn=${encodeURIComponent(isbn)}`)
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+      if (!ok) { status.textContent = d.erro || 'Nenhum resultado.'; status.style.color = '#dc3545'; return; }
+
+      if (d.titulo)    document.querySelector('[name=titulo]').value = d.titulo;
+      if (d.ano)       document.querySelector('[name=ano]').value = d.ano;
+      if (d.descricao) document.getElementById('id_descricao').value = d.descricao;
+
+      status.textContent = 'Dados preenchidos' + (d.autores ? ` — autor: ${d.autores}` : '') + '.';
+      status.style.color = '#198754';
+    })
+    .catch(() => { status.textContent = 'Erro ao conectar.'; status.style.color = '#dc3545'; })
+    .finally(() => { document.getElementById('btn_buscar_isbn').disabled = false; });
+});
+</script>
 {% endblock %}

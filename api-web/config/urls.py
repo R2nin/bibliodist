@@ -30,6 +30,7 @@ urlpatterns = [
     path("categorias/<int:pk>/excluir/", views.categoria_delete, name="categoria_delete"),
 
     # Livros
+    path("livros/buscar-isbn/", views.livro_buscar_isbn, name="livro_buscar_isbn"),
     path("livros/", views.livro_list, name="livro_list"),
     path("livros/novo/", views.livro_create, name="livro_create"),
     path("livros/<int:pk>/editar/", views.livro_edit, name="livro_edit"),
