@@ -43,8 +43,12 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       GRPC_HOST: grpc
       GRPC_PORT: "50051"
-      ALLOWED_HOSTS: "*"
+      ALLOWED_HOSTS: "computacao.fema.edu.br,localhost"
       DEBUG: "False"
+      # Subpath deployment: computacao.fema.edu.br/bibliodist
+      SCRIPT_NAME: "/bibliodist"
+      STATIC_URL: "/bibliodist/static/"
+      CSRF_TRUSTED_ORIGINS: "https://computacao.fema.edu.br"
     depends_on:
       db:
         condition: service_healthy
@@ -52,6 +56,21 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    labels:
+      # Traefik: roteia computacao.fema.edu.br/bibliodist/* para este serviço.
+      # StripPrefix remove /bibliodist antes de passar ao Gunicorn, então
+      # o Django recebe PATH_INFO limpo (/livros/, /admin/, etc.).
+      # FORCE_SCRIPT_NAME=/bibliodist garante que reverse() e {% url %} incluam
+      # /bibliodist/ nos links gerados.
+      - "traefik.enable=true"
+      # Rota HTTPS
+      - "traefik.http.routers.bibliodist-web.rule=Host(`computacao.fema.edu.br`) && PathPrefix(`/bibliodist`)"
+      - "traefik.http.routers.bibliodist-web.entrypoints=websecure"
+      - "traefik.http.routers.bibliodist-web.tls=true"
+      - "traefik.http.routers.bibliodist-web.middlewares=bibliodist-strip"
+      - "traefik.http.services.bibliodist-web.loadbalancer.server.port=8000"
+      # Middleware: remove /bibliodist do path antes de enviar ao Django
+      - "traefik.http.middlewares.bibliodist-strip.stripprefix.prefixes=/bibliodist"
 
   grpc:
     build:

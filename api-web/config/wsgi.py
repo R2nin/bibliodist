@@ -14,3 +14,16 @@ from django.core.wsgi import get_wsgi_application
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 application = get_wsgi_application()
+
+# WhiteNoise em modo WSGI com prefix explícito.
+#
+# Por que não usar WhiteNoiseMiddleware no MIDDLEWARE do Django:
+# O Traefik faz StripPrefix(/bibliodist) antes de enviar ao Gunicorn, então
+# PATH_INFO chega como /static/x. O middleware Django compararia /static/x
+# com STATIC_URL=/bibliodist/static/ e não encontraria o arquivo.
+# No modo WSGI com prefix='static', o WhiteNoise interpreta diretamente
+# /static/x e serve o arquivo correto.
+from whitenoise import WhiteNoise
+from django.conf import settings as _settings
+
+application = WhiteNoise(application, root=str(_settings.STATIC_ROOT), prefix='static')
