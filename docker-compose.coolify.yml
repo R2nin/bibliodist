@@ -63,11 +63,14 @@ services:
       # FORCE_SCRIPT_NAME=/bibliodist garante que reverse() e {% url %} incluam
       # /bibliodist/ nos links gerados.
       - "traefik.enable=true"
-      # Rota HTTPS
+      # Rede onde o Traefik encontra o container
+      - "traefik.docker.network=coolify"
+      # Rota HTTPS com prioridade alta (supera catch-all do Coolify)
       - "traefik.http.routers.bibliodist-web.rule=Host(`computacao.fema.edu.br`) && PathPrefix(`/bibliodist`)"
       - "traefik.http.routers.bibliodist-web.entrypoints=websecure"
       - "traefik.http.routers.bibliodist-web.tls=true"
       - "traefik.http.routers.bibliodist-web.middlewares=bibliodist-strip"
+      - "traefik.http.routers.bibliodist-web.priority=100"
       - "traefik.http.services.bibliodist-web.loadbalancer.server.port=8000"
       # Middleware: remove /bibliodist do path antes de enviar ao Django
       - "traefik.http.middlewares.bibliodist-strip.stripprefix.prefixes=/bibliodist"
