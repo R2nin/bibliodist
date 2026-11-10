@@ -12,6 +12,9 @@ import os
 from django.core.wsgi import get_wsgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+# Remove SCRIPT_NAME do environ para evitar que Gunicorn o repasse ao WSGI
+# e Django rejeite requests que não começam com esse prefixo.
+os.environ.pop('SCRIPT_NAME', None)
 
 application = get_wsgi_application()
 
