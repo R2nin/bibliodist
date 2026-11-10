@@ -27,12 +27,13 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-inseguro-troque-em-producao")
 DEBUG = env_bool("DEBUG", "True")
 
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "127.0.0.1,localhost")
-CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+# CSRF: usa CSRF_TRUSTED_ORIGINS se definido; caso contrário, deriva de ALLOWED_HOSTS.
+# Assim, basta atualizar ALLOWED_HOSTS no deploy sem configurar CSRF separadamente.
+_csrf_explicit = env_list("CSRF_TRUSTED_ORIGINS")
+_csrf_auto = [f"https://{h}" for h in ALLOWED_HOSTS if h not in ("127.0.0.1", "localhost", "")]
+CSRF_TRUSTED_ORIGINS = _csrf_explicit + [o for o in _csrf_auto if o not in _csrf_explicit]
 
-# Prefixo de caminho para deploy em subpath (ex.: /bibliodist).
-# Faz reverse() e {% url %} incluírem o prefixo automaticamente.
-# Deixe vazio (padrão) no desenvolvimento local.
-FORCE_SCRIPT_NAME = os.getenv("SCRIPT_NAME") or None
+FORCE_SCRIPT_NAME = None
 
 INSTALLED_APPS = [
     "django.contrib.admin",
