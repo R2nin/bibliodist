@@ -34,8 +34,8 @@ const page_html = `<!DOCTYPE html>
     margin: 0 auto;
     padding: 20px 40px;
   }
-  h1 { font-size: 24px; color: #1a1a2e; border-bottom: 3px solid #e67e22; padding-bottom: 8px; }
-  h2 { font-size: 18px; color: #16213e; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-top: 32px; }
+  h1 { font-size: 24px; color: #004784; border-bottom: 3px solid #F58220; padding-bottom: 8px; }
+  h2 { font-size: 18px; color: #004784; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-top: 32px; }
   h3 { font-size: 15px; color: #333; margin-top: 20px; }
   code {
     background: #f4f4f4;
@@ -68,7 +68,7 @@ const page_html = `<!DOCTYPE html>
     font-size: 12px;
   }
   th {
-    background: #16213e;
+    background: #004784;
     color: white;
     padding: 8px 12px;
     text-align: left;
@@ -86,7 +86,7 @@ const page_html = `<!DOCTYPE html>
     display: block;
   }
   blockquote {
-    border-left: 4px solid #e67e22;
+    border-left: 4px solid #F58220;
     margin: 12px 0;
     padding: 8px 16px;
     background: #fff8f0;
@@ -110,11 +110,11 @@ const page = await browser.newPage();
 await page.setContent(page_html, { waitUntil: 'networkidle0' });
 
 await page.pdf({
-  path: './relatorio.pdf',
+  path: './relatorio_almir.pdf',
   format: 'A4',
   margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' },
   printBackground: true,
 });
 
 await browser.close();
-console.log('PDF gerado: relatorio.pdf');
+console.log('PDF gerado: relatorio_almir.pdf');

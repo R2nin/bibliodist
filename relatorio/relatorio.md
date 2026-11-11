@@ -22,10 +22,11 @@
 9. [Fase 5 — Relatório Acadêmico](#9-fase-5--relatório-acadêmico)
 10. [Fase 6 — Acervo Real e Identidade Visual FEMA](#10-fase-6--acervo-real-e-identidade-visual-fema)
 11. [Fase 7 — Revisão Sistemática PRISMA 2020](#11-fase-7--revisão-sistemática-prisma-2020)
-12. [Deploy em Nuvem — Coolify](#12-deploy-em-nuvem--coolify)
-13. [Como Executar o Sistema](#13-como-executar-o-sistema)
-14. [Telas do Sistema](#14-telas-do-sistema)
-15. [Conclusão e Aprendizados](#15-conclusão-e-aprendizados)
+12. [Fase 8 — Autenticação, Detalhe do Livro e Logs](#12-fase-8--autenticação-detalhe-do-livro-e-logs)
+13. [Deploy em Nuvem — Coolify](#13-deploy-em-nuvem--coolify)
+14. [Como Executar o Sistema](#14-como-executar-o-sistema)
+15. [Telas do Sistema](#15-telas-do-sistema)
+16. [Conclusão e Aprendizados](#16-conclusão-e-aprendizados)
 
 ---
 
@@ -351,9 +352,44 @@ python manage.py test biblioteca
 
 ---
 
-## 12. Deploy em Nuvem — Coolify
+## 12. Fase 8 — Autenticação, Detalhe do Livro e Logs
 
-**Plataforma:** Coolify v4.6 — `computacao.fema.edu.br` (servidor do professor)
+**Commits:** `06c3d0c` a `869e056`
+
+### Sistema de Autenticação com Perfis
+
+O sistema implementa três perfis de acesso com permissões distintas:
+
+| Perfil | Permissões |
+|---|---|
+| **consulta** | Visualizar lista de livros, detalhe, PRISMA |
+| **admin** | Tudo do consulta + cadastrar/editar livros e gerenciar empréstimos |
+| **superadmin** | Tudo do admin + painel Django `/admin/` |
+
+Login via `/accounts/login/` (Django `LoginView`). Logout via POST (correção para Django 5.0).
+
+### Categorias M2M — Cursos da FEMA
+
+Livros podem ser associados a múltiplos cursos via relação ManyToMany. Os 14 cursos de graduação são pré-populados via migration de dados.
+
+### Detalhe do Livro com Resumo via ISBN
+
+Rota `/livros/<id>/` exibe:
+- Metadados completos (tombo, CDD, chapa, datas)
+- Resumo buscado automaticamente via API **Google Books** e **Open Library** pelo ISBN
+- Categorias (cursos FEMA) associadas
+
+### Logs do Sistema
+
+Todas as ações relevantes (empréstimo, devolução, cadastro) geram registros no model `Log`, visível no painel de notificações.
+
+---
+
+## 13. Deploy em Nuvem — Coolify
+
+**Plataforma:** Coolify v4.6 — servidor `187.33.201.107` (infraestrutura do professor)
+
+**URL de produção:** `https://bibliodist.187.33.201.107.sslip.io` ✅ (funcionando)
 
 ### Estratégia de deploy
 
@@ -366,7 +402,7 @@ web:
     dockerfile: api-web/Dockerfile
 ```
 
-Assim, o servidor do professor clona, compila e executa diretamente do repositório público, sem necessidade de publicar imagens em um registry.
+Assim, o servidor do professor clona, compila e executa diretamente do repositório público, sem necessidade de publicar imagens em um registry. O domínio `sslip.io` resolve automaticamente para o IP, eliminando necessidade de configuração de DNS.
 
 ### Containers em produção
 
@@ -379,13 +415,18 @@ Assim, o servidor do professor clona, compila e executa diretamente do repositó
 | `grpc` | Running | Servidor gRPC |
 | `worker` | Running | Consumidor RabbitMQ |
 
-### DNS
+### Acervo em produção
 
-Aguardando configuração do registro `A bibliodist.computacao.fema.edu.br → 187.33.201.107` pelo administrador do servidor.
+O acervo real da FEMA foi importado em produção:
+
+```bash
+docker compose exec web python manage.py importar_acervo "Portal Transparencia (...).json"
+# → 12.044 livros e 36.452 exemplares carregados
+```
 
 ---
 
-## 13. Como Executar o Sistema
+## 14. Como Executar o Sistema
 
 ### Com Docker (recomendado)
 
@@ -428,7 +469,7 @@ cd worker && pip install -r requirements.txt && python worker.py
 
 ---
 
-## 14. Telas do Sistema
+## 15. Telas do Sistema
 
 ### Lista de Livros
 
@@ -462,18 +503,18 @@ cd worker && pip install -r requirements.txt && python worker.py
 
 ---
 
-## 15. Conclusão e Aprendizados
+## 16. Conclusão e Aprendizados
 
-O BiblioDist demonstrou na prática **6 dos conceitos** do trabalho de Sistemas Distribuídos:
+O BiblioDist demonstrou na prática **6 dos conceitos** do trabalho de Sistemas Distribuídos, implementados em **8 fases** de desenvolvimento:
 
 | Conceito | Implementação |
 |---|---|
-| Docker | 6 containers orquestrados com Compose |
-| Webservice REST | Django (servidor) + API FEMA (cliente) |
-| SOA | 3 serviços com contratos bem definidos (HTTP, gRPC, AMQP) |
-| Microserviços | web, grpc, worker — independentes e com fallback |
-| DevOps | GitHub + Coolify, infra como código |
-| Computação em Nuvem | Deploy no servidor do professor via Coolify |
+| Docker | 6 containers orquestrados com Compose (Fase 4) |
+| Webservice REST | Django (servidor) + API FEMA PRISMA (cliente) — Fases 1 e 7 |
+| SOA | 3 serviços com contratos bem definidos (HTTP, gRPC, AMQP) — Fases 1–3 |
+| Microserviços | web, grpc, worker — independentes e com fallback — Fases 2–3 |
+| DevOps | GitHub + Coolify, infra como código, CI/CD automático — Fase 4 |
+| Computação em Nuvem | Deploy em produção no servidor do professor via Coolify — Fase 8 |
 
 ### Principais desafios técnicos
 
@@ -491,5 +532,7 @@ O BiblioDist demonstrou na prática **6 dos conceitos** do trabalho de Sistemas 
 - **Deploy em nuvem**: Coolify abstrai a complexidade de configurar Nginx, certificados SSL e CI/CD, mantendo o controle sobre a infraestrutura
 
 ---
+
+> **Observação:** Este documento reflete o estado do projeto em 11 de novembro de 2026. Até a data limite de entrega (13/11/2026), novas funcionalidades poderão ser incorporadas ao sistema e documentadas em versão atualizada deste relatório.
 
 *Relatório gerado como parte da avaliação da disciplina de Sistemas Distribuídos — FEMA, Novembro de 2026.*

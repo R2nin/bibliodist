@@ -1,0 +1,20 @@
+name: Deploy para Coolify
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    name: Acionar deploy no Coolify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notificar Coolify via webhook
+        run: |
+          curl --silent --fail --show-error \
+            --request GET \
+            "${{ secrets.COOLIFY_WEBHOOK_URL }}"
+        env:
+          COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
