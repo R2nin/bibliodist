@@ -37,7 +37,7 @@ class Livro(models.Model):
     tombo_exemplar = models.CharField(max_length=20, null=True, blank=True)
     classificacao_cdd = models.CharField(max_length=30, null=True, blank=True)
     data_aquisicao = models.DateField(null=True, blank=True)
-    chapa = models.CharField(max_length=20, null=True, blank=True)
+    chapa = models.CharField(max_length=500, null=True, blank=True)
     descricao = models.TextField(null=True, blank=True)
 
     class Meta:

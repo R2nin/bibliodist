@@ -110,6 +110,7 @@ class Command(BaseCommand):
                 sem_parse += 1
                 continue
             key = parsed['key']
+            chapa = reg.get('CHAPA', '').strip() or None
             if key not in livros:
                 livros[key] = {
                     'titulo': parsed['titulo'],
@@ -117,9 +118,11 @@ class Command(BaseCommand):
                     'tombo_exemplar': parsed.get('tombo_exemplar'),
                     'classificacao_cdd': parsed['cdd'],
                     'data_aquisicao': parsed['data_aquisicao'],
-                    'chapa': reg.get('CHAPA', '').strip() or None,
+                    'chapas': set(),
                     'total_exemplares': 0,
                 }
+            if chapa:
+                livros[key]['chapas'].add(chapa)
             livros[key]['total_exemplares'] += 1
 
         self.stdout.write(f'Títulos únicos identificados: {len(livros):,}')
@@ -147,13 +150,14 @@ class Command(BaseCommand):
                 ignorados += 1
                 continue
 
+            chapas_str = ", ".join(sorted(info['chapas'])) or None
             novos.append(Livro(
                 titulo=info['titulo'][:500],
                 tombo_inicial=info['tombo_inicial'],
                 tombo_exemplar=info['tombo_exemplar'],
                 classificacao_cdd=info['classificacao_cdd'],
                 data_aquisicao=info['data_aquisicao'],
-                chapa=info['chapa'],
+                chapa=chapas_str,
                 total_exemplares=info['total_exemplares'],
             ))
 

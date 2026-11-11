@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load biblioteca_extras %}
 {% block title %}Livros — BiblioDist{% endblock %}
 
 {% block content %}
@@ -76,7 +77,7 @@
         {% for livro in page_obj %}
         <tr>
           <td class="text-nowrap">{{ livro.data_aquisicao|date:"d/m/Y"|default:"—" }}</td>
-          <td class="text-nowrap">{{ livro.chapa|default:"—" }}</td>
+          <td class="text-nowrap">{{ livro.chapa|formatar_chapas }}</td>
           <td style="white-space:normal;word-break:break-word;min-width:200px;">
             <a href="{% url 'livro_detail' livro.pk %}" class="text-decoration-none fw-semibold">{{ livro.titulo }}</a>
           </td>
