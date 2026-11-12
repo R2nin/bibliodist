@@ -8,9 +8,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from .decorators import staff_required
-from .models import Autor, Categoria, Emprestimo, Leitor, Livro, Notificacao
+from .models import Autor, Categoria, Emprestimo, Leitor, Livro, LogOperacao, Notificacao
 from . import grpc_client
 from . import mq_publisher
+
+
+def _log(request, tipo, descricao):
+    usuario = request.user if request.user.is_authenticated else None
+    LogOperacao.objects.create(usuario=usuario, tipo=tipo, descricao=descricao)
 
 
 # ─── ISBN lookup ─────────────────────────────────────────────────────────────
@@ -68,7 +73,7 @@ def _buscar_open_library(isbn):
 
 @staff_required
 def logs(request):
-    qs = Notificacao.objects.select_related("leitor", "emprestimo__livro").order_by("-criada_em")
+    qs = LogOperacao.objects.select_related("usuario").order_by("-criado_em")
     tipo = request.GET.get("tipo", "")
     if tipo:
         qs = qs.filter(tipo=tipo)
@@ -234,6 +239,8 @@ def livro_list(request):
             tombo_exemplar__icontains=q
         )
         qs = qs.distinct()
+        nome = request.user.get_full_name() or request.user.username
+        _log(request, "busca", f'Usuário "{nome}" buscou por "{q}".')
     qs = qs.order_by(order_field)
 
     paginator = Paginator(qs, 10)
@@ -252,6 +259,8 @@ def livro_detail(request, pk):
         Livro.objects.select_related("autor").prefetch_related("categorias"),
         pk=pk,
     )
+    nome = request.user.get_full_name() or request.user.username
+    _log(request, "consulta_livro", f'Usuário "{nome}" consultou o livro "{livro.titulo}".')
     return render(request, "biblioteca/livro_detail.html", {"livro": livro})
 
 
@@ -507,6 +516,10 @@ def emprestimo_create(request):
                 "livros": livros,
                 "leitores": leitores,
             })
+        nome_op = request.user.get_full_name() or request.user.username
+        livro_emp = get_object_or_404(Livro, pk=livro_id)
+        leitor_emp = get_object_or_404(Leitor, pk=leitor_id)
+        _log(request, "emprestimo", f'Usuário "{nome_op}" registrou empréstimo de "{livro_emp.titulo}" para {leitor_emp.nome}.')
         return redirect("emprestimo_list")
 
     return render(request, "biblioteca/emprestimo_form.html", {
@@ -532,6 +545,8 @@ def emprestimo_devolver(request, pk):
             leitor_id=emp.leitor.pk,
             data_devolucao=hoje.strftime("%d/%m/%Y"),
         )
+        nome_op = request.user.get_full_name() or request.user.username
+        _log(request, "devolucao", f'Usuário "{nome_op}" registrou devolução de "{emp.livro.titulo}" por {emp.leitor.nome}.')
         messages.success(request, "Devolução registrada com sucesso.")
         return redirect("emprestimo_list")
     return render(request, "biblioteca/emprestimo_devolver.html", {"emp": emp})

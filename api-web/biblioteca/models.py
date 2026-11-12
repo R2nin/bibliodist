@@ -91,6 +91,33 @@ class Emprestimo(models.Model):
         return f"{self.livro} → {self.leitor} ({self.status})"
 
 
+class LogOperacao(models.Model):
+    TIPO_CHOICES = [
+        ("login", "Login"),
+        ("consulta_livro", "Consulta de Livro"),
+        ("busca", "Busca"),
+        ("emprestimo", "Empréstimo"),
+        ("devolucao", "Devolução"),
+    ]
+    usuario = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="logs_operacao",
+    )
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    descricao = models.TextField()
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Log de Operação"
+        verbose_name_plural = "Logs de Operação"
+        ordering = ["-criado_em"]
+
+    def __str__(self):
+        return f"[{self.tipo}] {self.usuario} — {self.criado_em:%d/%m/%Y %H:%M}"
+
+
 class Notificacao(models.Model):
     TIPO_CHOICES = [
         ("emprestimo", "Empréstimo Realizado"),

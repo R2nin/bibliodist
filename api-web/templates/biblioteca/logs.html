@@ -2,16 +2,18 @@
 {% block title %}Logs — BiblioDist{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h2 class="fema-marker">Logs do Sistema</h2>
+  <h2 class="fema-marker">Logs de Operações</h2>
 </div>
 
 <form method="get" class="mb-3 d-flex flex-wrap gap-2 align-items-center">
   <label class="form-label mb-0 me-1">Filtrar:</label>
   <select name="tipo" class="form-select w-auto" onchange="this.form.submit()">
     <option value="">— todos —</option>
-    <option value="emprestimo" {% if tipo == "emprestimo" %}selected{% endif %}>Empréstimo</option>
-    <option value="devolucao"  {% if tipo == "devolucao"  %}selected{% endif %}>Devolução</option>
-    <option value="atraso"     {% if tipo == "atraso"     %}selected{% endif %}>Atraso</option>
+    <option value="login"          {% if tipo == "login"          %}selected{% endif %}>Login</option>
+    <option value="consulta_livro" {% if tipo == "consulta_livro" %}selected{% endif %}>Consulta de Livro</option>
+    <option value="busca"          {% if tipo == "busca"          %}selected{% endif %}>Busca</option>
+    <option value="emprestimo"     {% if tipo == "emprestimo"     %}selected{% endif %}>Empréstimo</option>
+    <option value="devolucao"      {% if tipo == "devolucao"      %}selected{% endif %}>Devolução</option>
   </select>
   {% if tipo %}<a href="{% url 'logs' %}" class="btn btn-outline-secondary btn-sm">Limpar</a>{% endif %}
 </form>
@@ -22,26 +24,30 @@
       <thead class="table-dark">
         <tr>
           <th style="width:155px;">Data/Hora</th>
-          <th style="width:120px;">Tipo</th>
-          <th>Mensagem</th>
-          <th>Leitor</th>
+          <th style="width:140px;">Tipo</th>
+          <th style="width:120px;">Usuário</th>
+          <th>Descrição</th>
         </tr>
       </thead>
       <tbody>
-        {% for n in page_obj %}
+        {% for log in page_obj %}
         <tr>
-          <td class="text-nowrap text-muted" style="font-size:.82rem;">{{ n.criada_em|date:"d/m/Y H:i:s" }}</td>
+          <td class="text-nowrap text-muted" style="font-size:.82rem;">{{ log.criado_em|date:"d/m/Y H:i:s" }}</td>
           <td>
-            {% if n.tipo == "emprestimo" %}
+            {% if log.tipo == "login" %}
+              <span class="badge bg-secondary"><i class="bi bi-box-arrow-in-right me-1"></i>Login</span>
+            {% elif log.tipo == "consulta_livro" %}
+              <span class="badge bg-info text-dark"><i class="bi bi-book me-1"></i>Consulta</span>
+            {% elif log.tipo == "busca" %}
+              <span class="badge bg-warning text-dark"><i class="bi bi-search me-1"></i>Busca</span>
+            {% elif log.tipo == "emprestimo" %}
               <span class="badge bg-primary"><i class="bi bi-arrow-right-circle me-1"></i>Empréstimo</span>
-            {% elif n.tipo == "devolucao" %}
+            {% elif log.tipo == "devolucao" %}
               <span class="badge bg-success"><i class="bi bi-arrow-left-circle me-1"></i>Devolução</span>
-            {% else %}
-              <span class="badge bg-danger"><i class="bi bi-exclamation-circle me-1"></i>Atraso</span>
             {% endif %}
           </td>
-          <td style="white-space:normal;">{{ n.mensagem }}</td>
-          <td class="text-nowrap">{{ n.leitor.nome }}</td>
+          <td class="text-nowrap">{{ log.usuario.username|default:"—" }}</td>
+          <td style="white-space:normal;">{{ log.descricao }}</td>
         </tr>
         {% empty %}
         <tr><td colspan="4" class="text-center text-muted py-4">Nenhum registro encontrado.</td></tr>
