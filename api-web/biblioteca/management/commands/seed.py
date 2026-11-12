@@ -127,10 +127,10 @@ class Command(BaseCommand):
                     "titulo": d["titulo"],
                     "ano": d["ano"],
                     "autor": autores[d["autor"]],
-                    "categoria": categorias[d["categoria"]],
                     "total_exemplares": d["total_exemplares"],
                 },
             )
+            obj.categorias.add(categorias[d["categoria"]])
             livros[d["isbn"]] = obj
             if created:
                 self.stdout.write(f"  Livro criado: {d['titulo']}")
