@@ -117,3 +117,19 @@ LOGOUT_REDIRECT_URL = "login"
 
 # Segurança atrás do proxy do Railway
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# ─── E-mail (cobrança de atrasos) ────────────────────────────────────────────
+# Com EMAIL_HOST definido, envia por SMTP (ex.: Gmail com senha de app).
+# Sem EMAIL_HOST, usa o backend de console: o e-mail só aparece no log do servidor.
+EMAIL_HOST = os.getenv("EMAIL_HOST", "").strip()
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587") or 587)
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "").strip()
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", "True")
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", "False")
+EMAIL_TIMEOUT = 15
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend" if EMAIL_HOST
+    else "django.core.mail.backends.console.EmailBackend"
+)
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "").strip() or EMAIL_HOST_USER or "biblioteca@bibliodist.local"

@@ -84,6 +84,26 @@ def publicar_devolucao(emprestimo_id: int, livro_titulo: str,
         return False
 
 
+def publicar_evento(tipo: str, emprestimo_id: int, livro_titulo: str,
+                    leitor_id: int, mensagem: str) -> bool:
+    """Publica um evento genérico (renovação, atraso...) na fila de notificações."""
+    payload = {
+        "tipo": tipo,
+        "emprestimo_id": emprestimo_id,
+        "livro_titulo": livro_titulo,
+        "leitor_id": leitor_id,
+        "mensagem": mensagem,
+    }
+    try:
+        _publicar(payload)
+        logger.info("[MQ] Evento %s #%s publicado.", tipo, emprestimo_id)
+        return True
+    except Exception as exc:
+        logger.warning("[MQ] RabbitMQ indisponível (%s). Criando notificação localmente.", exc)
+        _fallback_sincrono(payload)
+        return False
+
+
 def _fallback_sincrono(payload: dict) -> None:
     """Cria Notificacao diretamente no banco quando o MQ está offline."""
     from .models import Notificacao  # importação local para evitar circular import

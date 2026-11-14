@@ -14,6 +14,8 @@
     <option value="busca"          {% if tipo == "busca"          %}selected{% endif %}>Busca</option>
     <option value="emprestimo"     {% if tipo == "emprestimo"     %}selected{% endif %}>Empréstimo</option>
     <option value="devolucao"      {% if tipo == "devolucao"      %}selected{% endif %}>Devolução</option>
+    <option value="renovacao"      {% if tipo == "renovacao"      %}selected{% endif %}>Renovação</option>
+    <option value="cobranca"       {% if tipo == "cobranca"       %}selected{% endif %}>Cobrança por E-mail</option>
   </select>
   {% if tipo %}<a href="{% url 'logs' %}" class="btn btn-outline-secondary btn-sm">Limpar</a>{% endif %}
 </form>
@@ -44,6 +46,10 @@
               <span class="badge bg-primary"><i class="bi bi-arrow-right-circle me-1"></i>Empréstimo</span>
             {% elif log.tipo == "devolucao" %}
               <span class="badge bg-success"><i class="bi bi-arrow-left-circle me-1"></i>Devolução</span>
+            {% elif log.tipo == "renovacao" %}
+              <span class="badge bg-primary-subtle text-primary-emphasis"><i class="bi bi-arrow-repeat me-1"></i>Renovação</span>
+            {% elif log.tipo == "cobranca" %}
+              <span class="badge bg-danger"><i class="bi bi-envelope me-1"></i>Cobrança</span>
             {% endif %}
           </td>
           <td class="text-nowrap">{{ log.usuario.username|default:"—" }}</td>

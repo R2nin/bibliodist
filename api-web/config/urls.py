@@ -47,6 +47,8 @@ urlpatterns = [
     path("emprestimos/", views.emprestimo_list, name="emprestimo_list"),
     path("emprestimos/novo/", views.emprestimo_create, name="emprestimo_create"),
     path("emprestimos/<int:pk>/devolver/", views.emprestimo_devolver, name="emprestimo_devolver"),
+    path("emprestimos/<int:pk>/renovar/", views.emprestimo_renovar, name="emprestimo_renovar"),
+    path("emprestimos/<int:pk>/cobrar/", views.emprestimo_cobrar, name="emprestimo_cobrar"),
 
     # Logs
     path("logs/", views.logs, name="logs"),

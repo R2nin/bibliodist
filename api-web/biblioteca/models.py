@@ -98,6 +98,8 @@ class LogOperacao(models.Model):
         ("busca", "Busca"),
         ("emprestimo", "Empréstimo"),
         ("devolucao", "Devolução"),
+        ("renovacao", "Renovação"),
+        ("cobranca", "Cobrança por E-mail"),
     ]
     usuario = models.ForeignKey(
         "auth.User",
@@ -123,6 +125,7 @@ class Notificacao(models.Model):
         ("emprestimo", "Empréstimo Realizado"),
         ("devolucao", "Devolução Registrada"),
         ("atraso", "Atraso Detectado"),
+        ("renovacao", "Empréstimo Renovado"),
     ]
 
     leitor = models.ForeignKey(Leitor, on_delete=models.CASCADE, related_name="notificacoes")

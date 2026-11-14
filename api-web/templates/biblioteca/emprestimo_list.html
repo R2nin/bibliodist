@@ -46,6 +46,12 @@
           <td>
             {% if request.user.is_staff and emp.status == "ativo" %}
               <a href="{% url 'emprestimo_devolver' emp.pk %}" class="btn btn-sm btn-warning text-white">Devolver</a>
+            {% elif request.user.is_staff and emp.status == "atrasado" %}
+              <div class="d-flex flex-wrap gap-1">
+                <a href="{% url 'emprestimo_devolver' emp.pk %}" class="btn btn-sm btn-warning text-white">Devolver</a>
+                <a href="{% url 'emprestimo_renovar' emp.pk %}" class="btn btn-sm btn-outline-primary" title="Renovar até uma nova data"><i class="bi bi-arrow-repeat me-1"></i>Renovar</a>
+                <a href="{% url 'emprestimo_cobrar' emp.pk %}" class="btn btn-sm btn-outline-danger" title="Enviar e-mail de cobrança ao leitor"><i class="bi bi-envelope me-1"></i>E-mail</a>
+              </div>
             {% else %}
               <span class="text-muted">—</span>
             {% endif %}

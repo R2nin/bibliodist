@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Renovar Empréstimo — BiblioDist{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <h2>Renovar Empréstimo</h2>
+    <div class="card shadow-sm mt-3">
+      <div class="card-body">
+        <dl class="row">
+          <dt class="col-sm-4">Livro</dt>
+          <dd class="col-sm-8">{{ emp.livro.titulo }}</dd>
+          <dt class="col-sm-4">Leitor</dt>
+          <dd class="col-sm-8">{{ emp.leitor.nome }}</dd>
+          <dt class="col-sm-4">Data Empréstimo</dt>
+          <dd class="col-sm-8">{{ emp.data_emprestimo|date:"d/m/Y" }}</dd>
+          <dt class="col-sm-4">Prev. Devolução</dt>
+          <dd class="col-sm-8"><span class="text-danger fw-semibold">{{ emp.data_prevista|date:"d/m/Y" }}</span> <span class="badge bg-danger">Atrasado</span></dd>
+        </dl>
+        <hr>
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="nova_data" class="form-label">Nova data de devolução</label>
+            <input type="date" id="nova_data" name="nova_data" class="form-control"
+                   min="{{ minimo|date:'Y-m-d' }}" value="{{ sugestao|date:'Y-m-d' }}" required>
+            <div class="form-text">O empréstimo volta ao status <strong>Ativo</strong> até a nova data.</div>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat me-1"></i>Renovar</button>
+            <a href="{% url 'emprestimo_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

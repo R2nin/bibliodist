@@ -184,3 +184,90 @@ class PrismaViewTests(TestCase):
         linhas = r.content.decode("utf-8-sig").strip().splitlines()
         self.assertTrue(linhas[0].startswith("situacao;etapa;motivo"))
         self.assertEqual(len(linhas), 1 + 5)
+
+
+# ─── Empréstimos em atraso: renovação e cobrança ─────────────────────────────
+
+import datetime as _dt
+
+from django.contrib.auth.models import User
+from django.core import mail
+from django.test import override_settings
+from django.utils import timezone
+
+from .models import Emprestimo, Leitor, Livro, LogOperacao, Notificacao
+
+
+@mock.patch("biblioteca.mq_publisher._publicar", side_effect=ConnectionError("mq offline"))
+class EmprestimoAtrasadoTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user("bib", password="x", is_staff=True)
+        self.client.force_login(self.staff)
+        self.hoje = timezone.now().date()
+        leitor = Leitor.objects.create(nome="Ana", email="ana@example.com", matricula="123")
+        livro = Livro.objects.create(titulo="Dom Casmurro")
+        self.emp = Emprestimo.objects.create(
+            livro=livro, leitor=leitor,
+            data_emprestimo=self.hoje - _dt.timedelta(days=20),
+            data_prevista=self.hoje - _dt.timedelta(days=3),
+        )
+
+    def test_lista_mostra_acoes_para_atrasado(self, _):
+        r = self.client.get(reverse("emprestimo_list"))
+        self.emp.refresh_from_db()
+        self.assertEqual(self.emp.status, "atrasado")
+        self.assertContains(r, reverse("emprestimo_renovar", args=[self.emp.pk]))
+        self.assertContains(r, reverse("emprestimo_cobrar", args=[self.emp.pk]))
+        self.assertContains(r, reverse("emprestimo_devolver", args=[self.emp.pk]))
+
+    def test_renovar_ate_nova_data(self, _):
+        nova = self.hoje + _dt.timedelta(days=10)
+        r = self.client.post(reverse("emprestimo_renovar", args=[self.emp.pk]),
+                             {"nova_data": nova.isoformat()})
+        self.assertRedirects(r, reverse("emprestimo_list"), fetch_redirect_response=False)
+        self.emp.refresh_from_db()
+        self.assertEqual(self.emp.status, "ativo")
+        self.assertEqual(self.emp.data_prevista, nova)
+        self.assertTrue(LogOperacao.objects.filter(tipo="renovacao").exists())
+        self.assertTrue(Notificacao.objects.filter(tipo="renovacao", emprestimo=self.emp).exists())
+
+    def test_renovar_rejeita_data_passada(self, _):
+        r = self.client.post(reverse("emprestimo_renovar", args=[self.emp.pk]),
+                             {"nova_data": self.hoje.isoformat()})
+        self.assertEqual(r.status_code, 200)
+        self.emp.refresh_from_db()
+        self.assertEqual(self.emp.status, "atrasado")
+
+    @override_settings(EMAIL_HOST="smtp.example.com")
+    def test_cobrar_envia_email(self, _):
+        self.client.get(reverse("emprestimo_list"))  # marca como atrasado
+        r = self.client.get(reverse("emprestimo_cobrar", args=[self.emp.pk]))
+        self.assertContains(r, "3 dias de atraso")
+        r = self.client.post(reverse("emprestimo_cobrar", args=[self.emp.pk]),
+                             {"assunto": "Atraso", "corpo": "Devolva, por favor."})
+        self.assertRedirects(r, reverse("emprestimo_list"), fetch_redirect_response=False)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["ana@example.com"])
+        self.assertEqual(mail.outbox[0].body, "Devolva, por favor.")
+        self.assertTrue(LogOperacao.objects.filter(tipo="cobranca").exists())
+        self.assertTrue(Notificacao.objects.filter(tipo="atraso", emprestimo=self.emp).exists())
+
+    def test_devolver_atrasado(self, _):
+        self.client.get(reverse("emprestimo_list"))
+        self.client.post(reverse("emprestimo_devolver", args=[self.emp.pk]))
+        self.emp.refresh_from_db()
+        self.assertEqual(self.emp.status, "devolvido")
+
+    def test_acoes_bloqueadas_para_ativo(self, _):
+        self.emp.data_prevista = self.hoje + _dt.timedelta(days=5)
+        self.emp.save()
+        for nome in ("emprestimo_renovar", "emprestimo_cobrar"):
+            r = self.client.post(reverse(nome, args=[self.emp.pk]), {"nova_data": "2099-01-01"})
+            self.assertRedirects(r, reverse("emprestimo_list"), fetch_redirect_response=False)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_leitor_comum_sem_acesso(self, _):
+        comum = User.objects.create_user("leitor", password="x")
+        self.client.force_login(comum)
+        r = self.client.get(reverse("emprestimo_cobrar", args=[self.emp.pk]))
+        self.assertEqual(r.status_code, 403)

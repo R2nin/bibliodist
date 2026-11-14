@@ -1,7 +1,12 @@
+import datetime
+import logging
+
 import requests as _requests
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.conf import settings
+from django.core.mail import send_mail
 from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -534,7 +539,7 @@ def emprestimo_create(request):
 @staff_required
 def emprestimo_devolver(request, pk):
     emp = get_object_or_404(Emprestimo, pk=pk)
-    if emp.status != "ativo":
+    if emp.status == "devolvido":
         messages.warning(request, "Este empréstimo já foi encerrado.")
         return redirect("emprestimo_list")
     if request.method == "POST":
@@ -553,3 +558,117 @@ def emprestimo_devolver(request, pk):
         messages.success(request, "Devolução registrada com sucesso.")
         return redirect("emprestimo_list")
     return render(request, "biblioteca/emprestimo_devolver.html", {"emp": emp})
+
+
+# ─── Empréstimos em atraso: renovação e cobrança por e-mail ──────────────────
+
+def _texto_cobranca(emp):
+    hoje = timezone.now().date()
+    dias = (hoje - emp.data_prevista).days
+    assunto = f'BiblioDist — devolução em atraso: "{emp.livro.titulo}"'
+    corpo = (
+        f"Olá, {emp.leitor.nome}.\n\n"
+        f'Consta em nosso sistema que o livro "{emp.livro.titulo}", emprestado em '
+        f"{emp.data_emprestimo:%d/%m/%Y}, deveria ter sido devolvido em "
+        f"{emp.data_prevista:%d/%m/%Y} ({dias} dia{'s' if dias != 1 else ''} de atraso).\n\n"
+        "Por favor, devolva o livro na biblioteca o quanto antes ou entre em contato "
+        "para solicitar a renovação do empréstimo.\n\n"
+        "Atenciosamente,\nBiblioteca — BiblioDist"
+    )
+    return assunto, corpo
+
+
+@staff_required
+def emprestimo_renovar(request, pk):
+    _atualizar_atrasos()
+    emp = get_object_or_404(Emprestimo.objects.select_related("livro", "leitor"), pk=pk)
+    if emp.status != "atrasado":
+        messages.warning(request, "Só é possível renovar empréstimos em atraso.")
+        return redirect("emprestimo_list")
+
+    hoje = timezone.now().date()
+    sugestao = hoje + datetime.timedelta(days=7)
+    if request.method == "POST":
+        bruto = request.POST.get("nova_data", "").strip()
+        try:
+            nova_data = datetime.date.fromisoformat(bruto)
+        except ValueError:
+            nova_data = None
+        if not nova_data:
+            messages.error(request, "Informe uma data válida.")
+        elif nova_data <= hoje:
+            messages.error(request, "A nova data de devolução deve ser posterior a hoje.")
+        else:
+            anterior = emp.data_prevista
+            emp.data_prevista = nova_data
+            emp.status = "ativo"
+            emp.save(update_fields=["data_prevista", "status"])
+            mq_publisher.publicar_evento(
+                tipo="renovacao",
+                emprestimo_id=emp.pk,
+                livro_titulo=emp.livro.titulo,
+                leitor_id=emp.leitor.pk,
+                mensagem=(
+                    f'Empréstimo do livro "{emp.livro.titulo}" renovado. '
+                    f"Nova data de devolução: {nova_data:%d/%m/%Y}."
+                ),
+            )
+            nome_op = request.user.get_full_name() or request.user.username
+            _log(request, "renovacao",
+                 f'Usuário "{nome_op}" renovou o empréstimo de "{emp.livro.titulo}" para '
+                 f"{emp.leitor.nome}: de {anterior:%d/%m/%Y} para {nova_data:%d/%m/%Y}.")
+            messages.success(request, f"Empréstimo renovado até {nova_data:%d/%m/%Y}.")
+            return redirect("emprestimo_list")
+        sugestao = nova_data or sugestao
+
+    return render(request, "biblioteca/emprestimo_renovar.html", {
+        "emp": emp,
+        "hoje": hoje,
+        "minimo": hoje + datetime.timedelta(days=1),
+        "sugestao": sugestao,
+    })
+
+
+@staff_required
+def emprestimo_cobrar(request, pk):
+    _atualizar_atrasos()
+    emp = get_object_or_404(Emprestimo.objects.select_related("livro", "leitor"), pk=pk)
+    if emp.status != "atrasado":
+        messages.warning(request, "Só é possível enviar cobrança de empréstimos em atraso.")
+        return redirect("emprestimo_list")
+
+    smtp_configurado = bool(settings.EMAIL_HOST)
+    assunto, corpo = _texto_cobranca(emp)
+    if request.method == "POST":
+        assunto = request.POST.get("assunto", "").strip() or assunto
+        corpo = request.POST.get("corpo", "").strip() or corpo
+        try:
+            send_mail(assunto, corpo, settings.DEFAULT_FROM_EMAIL, [emp.leitor.email])
+        except Exception as exc:
+            logging.getLogger(__name__).exception("Falha ao enviar e-mail de cobrança")
+            messages.error(request, f"Não foi possível enviar o e-mail: {exc}")
+        else:
+            mq_publisher.publicar_evento(
+                tipo="atraso",
+                emprestimo_id=emp.pk,
+                livro_titulo=emp.livro.titulo,
+                leitor_id=emp.leitor.pk,
+                mensagem=f'E-mail de cobrança enviado para {emp.leitor.email} sobre "{emp.livro.titulo}".',
+            )
+            nome_op = request.user.get_full_name() or request.user.username
+            _log(request, "cobranca",
+                 f'Usuário "{nome_op}" enviou e-mail de cobrança para {emp.leitor.nome} '
+                 f'<{emp.leitor.email}> sobre "{emp.livro.titulo}" (previsto para {emp.data_prevista:%d/%m/%Y}).')
+            if smtp_configurado:
+                messages.success(request, f"E-mail de cobrança enviado para {emp.leitor.email}.")
+            else:
+                messages.warning(request, "SMTP não configurado: o e-mail foi gerado apenas no log do servidor.")
+            return redirect("emprestimo_list")
+
+    return render(request, "biblioteca/emprestimo_cobrar.html", {
+        "emp": emp,
+        "assunto": assunto,
+        "corpo": corpo,
+        "dias_atraso": (timezone.now().date() - emp.data_prevista).days,
+        "smtp_configurado": smtp_configurado,
+    })
