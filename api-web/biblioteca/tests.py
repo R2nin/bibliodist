@@ -252,6 +252,18 @@ class EmprestimoAtrasadoTests(TestCase):
         self.assertTrue(LogOperacao.objects.filter(tipo="cobranca").exists())
         self.assertTrue(Notificacao.objects.filter(tipo="atraso", emprestimo=self.emp).exists())
 
+    def test_contador_de_cobrancas(self, _):
+        self.client.get(reverse("emprestimo_list"))
+        url = reverse("emprestimo_cobrar", args=[self.emp.pk])
+        for _i in range(2):
+            self.client.post(url, {"assunto": "Atraso", "corpo": "Devolva."})
+        self.emp.refresh_from_db()
+        self.assertEqual(self.emp.cobrancas, 2)
+        self.assertIsNotNone(self.emp.ultima_cobranca)
+        self.assertContains(self.client.get(reverse("emprestimo_list")), "Cobrado 2 vezes")
+        self.assertContains(self.client.get(url), "Cobrado <strong>2 vezes</strong>")
+        self.assertTrue(LogOperacao.objects.filter(descricao__contains="2ª cobrança").exists())
+
     def test_devolver_atrasado(self, _):
         self.client.get(reverse("emprestimo_list"))
         self.client.post(reverse("emprestimo_devolver", args=[self.emp.pk]))

@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
+from django.db.models import F
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -648,6 +649,12 @@ def emprestimo_cobrar(request, pk):
             logging.getLogger(__name__).exception("Falha ao enviar e-mail de cobrança")
             messages.error(request, f"Não foi possível enviar o e-mail: {exc}")
         else:
+            # F() evita perder contagem se dois envios ocorrerem ao mesmo tempo
+            Emprestimo.objects.filter(pk=emp.pk).update(
+                cobrancas=F("cobrancas") + 1, ultima_cobranca=timezone.now(),
+            )
+            emp.refresh_from_db(fields=["cobrancas", "ultima_cobranca"])
+            vezes = f"{emp.cobrancas}ª cobrança"
             mq_publisher.publicar_evento(
                 tipo="atraso",
                 emprestimo_id=emp.pk,
@@ -658,11 +665,11 @@ def emprestimo_cobrar(request, pk):
             nome_op = request.user.get_full_name() or request.user.username
             _log(request, "cobranca",
                  f'Usuário "{nome_op}" enviou e-mail de cobrança para {emp.leitor.nome} '
-                 f'<{emp.leitor.email}> sobre "{emp.livro.titulo}" (previsto para {emp.data_prevista:%d/%m/%Y}).')
+                 f'<{emp.leitor.email}> sobre "{emp.livro.titulo}" (previsto para {emp.data_prevista:%d/%m/%Y}) — {vezes}.')
             if smtp_configurado:
-                messages.success(request, f"E-mail de cobrança enviado para {emp.leitor.email}.")
+                messages.success(request, f"E-mail de cobrança enviado para {emp.leitor.email} ({vezes}).")
             else:
-                messages.warning(request, "SMTP não configurado: o e-mail foi gerado apenas no log do servidor.")
+                messages.warning(request, f"SMTP não configurado: o e-mail foi gerado apenas no log do servidor ({vezes}).")
             return redirect("emprestimo_list")
 
     return render(request, "biblioteca/emprestimo_cobrar.html", {

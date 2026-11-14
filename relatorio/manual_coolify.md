@@ -626,7 +626,7 @@ Quando a data prevista de devolução passa, o empréstimo muda automaticamente 
 
 ![Renovar empréstimo](screenshots/manual/15_renovar.png)
 
-**E-mail** mostra uma pré-visualização da cobrança já preenchida com o livro, as datas e os dias de atraso; o texto pode ser ajustado antes de clicar em **Enviar e-mail**. A mensagem sai pelo SMTP configurado no Coolify (seção 4, Passo 6) para o e-mail cadastrado do leitor.
+**E-mail** mostra uma pré-visualização da cobrança já preenchida com o livro, as datas e os dias de atraso; o texto pode ser ajustado antes de clicar em **Enviar e-mail**. A mensagem sai pelo SMTP configurado no Coolify (seção 4, Passo 6) para o e-mail cadastrado do leitor. Cada envio incrementa um contador do empréstimo: a lista passa a mostrar *"Cobrado 1 vez"*, *"Cobrado 2 vezes"*… abaixo do status, e a tela de e-mail informa quantas cobranças já foram feitas e a data/hora da última.
 
 ![Enviar e-mail de cobrança](screenshots/manual/16_cobrar.png)
 

@@ -20,6 +20,15 @@
           <dt class="col-sm-3">Prev. Devolução</dt>
           <dd class="col-sm-9"><span class="text-danger fw-semibold">{{ emp.data_prevista|date:"d/m/Y" }}</span>
             <span class="badge bg-danger">{{ dias_atraso }} dia{{ dias_atraso|pluralize }} de atraso</span></dd>
+          <dt class="col-sm-3">Cobranças</dt>
+          <dd class="col-sm-9">
+            {% if emp.cobrancas %}
+              Cobrado <strong>{{ emp.cobrancas }} vez{{ emp.cobrancas|pluralize:"es" }}</strong>
+              <span class="text-muted">— última em {{ emp.ultima_cobranca|date:"d/m/Y H:i" }}</span>
+            {% else %}
+              <span class="text-muted">Nenhuma cobrança enviada ainda.</span>
+            {% endif %}
+          </dd>
         </dl>
         <hr>
         <form method="post">

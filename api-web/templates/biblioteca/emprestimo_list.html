@@ -42,6 +42,11 @@
             {% else %}
               <span class="badge bg-danger">Atrasado</span>
             {% endif %}
+            {% if emp.cobrancas %}
+              <div class="small text-danger mt-1" title="Última cobrança: {{ emp.ultima_cobranca|date:'d/m/Y H:i' }}">
+                <i class="bi bi-envelope-check me-1"></i>Cobrado {{ emp.cobrancas }} vez{{ emp.cobrancas|pluralize:"es" }}
+              </div>
+            {% endif %}
           </td>
           <td>
             {% if request.user.is_staff and emp.status == "ativo" %}
