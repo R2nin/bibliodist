@@ -17,10 +17,25 @@ jobs:
             echo "::error::Configure os secrets COOLIFY_WEBHOOK_URL e COOLIFY_TOKEN (Settings > Secrets and variables > Actions)."
             exit 1
           fi
-          curl --silent --fail --show-error \
-            --request GET \
-            --header "Authorization: Bearer $COOLIFY_TOKEN" \
-            "$COOLIFY_WEBHOOK_URL"
+          # Mostra só o caminho da URL (sem domínio nem query/token) para diagnóstico
+          caminho="${COOLIFY_WEBHOOK_URL%%\?*}"
+          echo "Endpoint: /${caminho#*://*/}"
+
+          chamar() {
+            curl --silent --show-error --output resposta.txt --write-out '%{http_code}' \
+              --request "$1" \
+              --header "Authorization: Bearer $COOLIFY_TOKEN" \
+              "$COOLIFY_WEBHOOK_URL"
+          }
+
+          status=$(chamar GET)
+          if [ "$status" = "405" ]; then
+            echo "GET retornou 405, tentando POST..."
+            status=$(chamar POST)
+          fi
+          echo "HTTP $status"
+          head -c 500 resposta.txt; echo
+          case "$status" in 2*) ;; *) exit 1 ;; esac
         env:
           COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
