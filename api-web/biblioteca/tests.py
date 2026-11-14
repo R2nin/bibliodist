@@ -325,3 +325,23 @@ class PermissoesAdminTests(TestCase):
     def test_usuario_comum_continua_sem_acesso(self):
         self.client.force_login(self.comum)
         self.assertEqual(self.client.get(reverse("usuario_list")).status_code, 403)
+
+
+class PaginacaoTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_user("bib2", password="x", is_staff=True))
+        Livro.objects.bulk_create([Livro(titulo=f"Livro {i:03d}") for i in range(35)])
+
+    def test_campo_de_pagina_e_links_preservam_busca(self):
+        r = self.client.get(reverse("livro_list"), {"q": "Livro", "page": 2})
+        html = r.content.decode()
+        self.assertIn('name="page"', html)
+        self.assertIn('value="2"', html)
+        self.assertIn('max="4"', html)
+        self.assertIn('<input type="hidden" name="q" value="Livro">', html)
+        self.assertIn("?q=Livro&amp;page=4", html)   # última página
+        self.assertIn("?q=Livro&amp;page=1", html)   # primeira página
+
+    def test_pagina_fora_do_intervalo_vai_para_a_ultima(self):
+        r = self.client.get(reverse("livro_list"), {"page": 999})
+        self.assertEqual(r.context["page_obj"].number, 4)
