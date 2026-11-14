@@ -283,3 +283,45 @@ class EmprestimoAtrasadoTests(TestCase):
         self.client.force_login(comum)
         r = self.client.get(reverse("emprestimo_cobrar", args=[self.emp.pk]))
         self.assertEqual(r.status_code, 403)
+
+
+@override_settings(STORAGES={
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+})
+class PermissoesAdminTests(TestCase):
+    def setUp(self):
+        self.super = User.objects.create_superuser("root", password="x")
+        self.admin = User.objects.create_user("adm", password="x", is_staff=True)
+        self.comum = User.objects.create_user("leitor", password="x")
+        self.client.force_login(self.admin)
+
+    def test_admin_acessa_usuarios_e_cria_conta(self):
+        self.assertEqual(self.client.get(reverse("usuario_list")).status_code, 200)
+        self.assertContains(self.client.get(reverse("home")), reverse("usuario_list"))
+        self.client.post(reverse("usuario_create"), {
+            "username": "novo", "senha": "senhaforte1", "senha2": "senhaforte1", "papel": "admin"})
+        self.assertTrue(User.objects.get(username="novo").is_staff)
+
+    def test_admin_reseta_senha_de_comum_mas_nao_de_superadmin(self):
+        url = lambda u: reverse("usuario_reset_senha", args=[u.pk])
+        r = self.client.post(url(self.comum), {"senha": "outrasenha1", "senha2": "outrasenha1"})
+        self.assertRedirects(r, reverse("usuario_list"), fetch_redirect_response=False)
+        self.assertEqual(self.client.get(url(self.super)).status_code, 403)
+
+    def test_admin_tem_todas_as_permissoes_no_django_admin(self):
+        self.assertTrue(self.admin.has_perm("biblioteca.delete_livro"))
+        self.assertTrue(self.admin.has_perm("auth.change_user"))
+        self.assertFalse(self.comum.has_perm("biblioteca.delete_livro"))
+        self.assertEqual(self.client.get("/admin/biblioteca/livro/").status_code, 200)
+
+    def test_admin_nao_ve_nem_edita_superadmin_no_django_admin(self):
+        r = self.client.get("/admin/auth/user/")
+        self.assertNotContains(r, ">root<")
+        self.assertNotEqual(self.client.get(f"/admin/auth/user/{self.super.pk}/change/").status_code, 200)
+        r = self.client.get(f"/admin/auth/user/{self.admin.pk}/change/")
+        self.assertNotContains(r, 'name="is_superuser"')
+
+    def test_usuario_comum_continua_sem_acesso(self):
+        self.client.force_login(self.comum)
+        self.assertEqual(self.client.get(reverse("usuario_list")).status_code, 403)

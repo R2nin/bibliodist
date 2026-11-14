@@ -1,17 +1,18 @@
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .decorators import superuser_required
+from .decorators import staff_required
 
 
-@superuser_required
+@staff_required
 def usuario_list(request):
     usuarios = User.objects.all().order_by("username")
     return render(request, "usuarios/usuario_list.html", {"usuarios": usuarios})
 
 
-@superuser_required
+@staff_required
 def usuario_create(request):
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
@@ -50,9 +51,12 @@ def usuario_create(request):
     return render(request, "usuarios/usuario_form.html")
 
 
-@superuser_required
+@staff_required
 def usuario_reset_senha(request, pk):
     usuario = get_object_or_404(User, pk=pk)
+    # Admins gerenciam contas admin/consulta; a senha do superadmin só ele mesmo altera.
+    if usuario.is_superuser and not request.user.is_superuser:
+        raise PermissionDenied
     if request.method == "POST":
         senha = request.POST.get("senha", "")
         senha2 = request.POST.get("senha2", "")

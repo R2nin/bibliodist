@@ -562,8 +562,8 @@ Este capítulo mostra o uso do BiblioDist com o perfil de **administrador**. As 
 
 | Perfil | Pode fazer |
 |---|---|
-| **Superadmin** | Tudo, inclusive criar usuários e redefinir senhas (menu **Usuários**) |
-| **Administrador** | Cadastrar e editar livros, autores, categorias e leitores; registrar empréstimos e devoluções; ver logs |
+| **Superadmin** | Tudo. É a única conta cuja senha e perfil não podem ser alterados por outros administradores |
+| **Administrador** | As mesmas permissões do superadmin: acervo, leitores, empréstimos, logs, menu **Usuários** (criar contas e redefinir senhas de administradores e usuários normais) e o painel **Admin** completo |
 | **Usuário normal** | Apenas consultar o acervo (busca e detalhes dos livros) |
 
 ### 9.1 Entrar no sistema
@@ -638,9 +638,9 @@ Em **Logs**, o administrador vê o histórico de operações — logins, buscas,
 
 ![Logs de operações](screenshots/manual/11_logs.png)
 
-### 9.10 Gerenciar usuários (Superadmin)
+### 9.10 Gerenciar usuários
 
-Em **Usuários → Novo Usuário**, o superadmin cria contas escolhendo o perfil (administrador ou normal) e pode redefinir senhas. Para tarefas avançadas, o menu **Admin** abre o painel administrativo do Django.
+Em **Usuários → Novo Usuário**, o superadmin ou qualquer administrador cria contas escolhendo o perfil (administrador ou normal) e pode redefinir senhas. Para tarefas avançadas, o menu **Admin** abre o painel administrativo do Django com acesso completo. Por segurança, um administrador não vê nem altera a conta do superadmin e não consegue se promover a superadmin.
 
 ![Usuários](screenshots/manual/12_usuarios.png)
 

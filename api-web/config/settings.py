@@ -133,3 +133,6 @@ EMAIL_BACKEND = (
     else "django.core.mail.backends.console.EmailBackend"
 )
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "").strip() or EMAIL_HOST_USER or "biblioteca@bibliodist.local"
+
+# Admins (is_staff) têm acesso completo ao /admin, como o superadmin.
+AUTHENTICATION_BACKENDS = ["biblioteca.backends.StaffTotalBackend"]
