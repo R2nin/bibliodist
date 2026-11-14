@@ -421,6 +421,14 @@ class BuscaIsbnTests(TestCase):
         self.assertEqual(d["capa_url"], "https://covers.openlibrary.org/b/1-L.jpg")
         self.assertEqual((d["nota"], d["nota_qtd"]), (4.24, 50))
         self.assertEqual(d["fonte"], "Open Library")
+        self.assertIn("cota diária esgotada", d["avisos"][0])
+
+    @override_settings(GOOGLE_BOOKS_API_KEY="chave-errada")
+    def test_chave_recusada_vira_aviso(self):
+        with _fake_http(google_status=400):
+            avisos = []
+            self.assertIsNone(isbn_lookup.buscar("9788576082675", avisos))
+        self.assertIn("recusou a chave", avisos[0])
 
     def test_open_library_completa_capa_que_falta_no_google(self):
         g = dict(GOOGLE, imageLinks={}, averageRating=None, ratingsCount=None)

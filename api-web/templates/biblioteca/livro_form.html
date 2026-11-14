@@ -181,6 +181,10 @@ document.getElementById('btn_buscar_isbn').addEventListener('click', function ()
       status.textContent = 'Dados preenchidos' + (d.fonte ? ` (fonte: ${d.fonte})` : '') +
         (faltando.length ? ` — sem ${faltando.join(', ')} nas fontes consultadas` : '') + '.';
       status.style.color = '#198754';
+      if (d.avisos && d.avisos.length) {
+        status.textContent += ' Atenção: ' + d.avisos.join('; ') + '.';
+        status.style.color = '#b26a00';
+      }
     })
     .catch(() => { status.textContent = 'Erro ao conectar.'; status.style.color = '#dc3545'; })
     .finally(() => { document.getElementById('btn_buscar_isbn').disabled = false; });

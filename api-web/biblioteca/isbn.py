@@ -63,7 +63,8 @@ def _https(url):
 
 # ─── Google Books ────────────────────────────────────────────────────────────
 
-def buscar_google_books(isbn):
+def buscar_google_books(isbn, avisos=None):
+    avisos = avisos if avisos is not None else []
     params = {"q": f"isbn:{isbn}"}
     chave = getattr(settings, "GOOGLE_BOOKS_API_KEY", "")
     if chave:
@@ -73,6 +74,16 @@ def buscar_google_books(isbn):
                          params=params, timeout=TIMEOUT)
         if r.status_code == 429:
             logger.warning("Google Books: cota esgotada (configure GOOGLE_BOOKS_API_KEY).")
+            avisos.append("Google Books: cota diária esgotada"
+                          + ("" if chave else " (sem chave de API configurada)"))
+            return None
+        if r.status_code in (400, 403) and chave:
+            try:
+                msg = r.json().get("error", {}).get("message", "")
+            except ValueError:
+                msg = ""
+            logger.warning("Google Books recusou a chave: %s", msg)
+            avisos.append("Google Books recusou a chave de API (" + (msg or str(r.status_code))[:80] + ")")
             return None
         r.raise_for_status()
         items = r.json().get("items") or []
@@ -163,17 +174,21 @@ def capa_open_library(isbn):
 
 # ─── Combinação ──────────────────────────────────────────────────────────────
 
-def buscar(isbn):
-    """Consulta as fontes e combina o resultado. Retorna dict ou None."""
+def buscar(isbn, avisos=None):
+    """Consulta as fontes e combina o resultado. Retorna dict ou None.
+
+    Problemas nas fontes (cota esgotada, chave recusada) vão para `avisos`."""
     isbn = normalizar_isbn(isbn)
     if len(isbn) not in (10, 13):
         return None
 
+    avisos = avisos if avisos is not None else []
     dados, fontes = {}, []
     for nome, func in (("Google Books", buscar_google_books), ("Open Library", buscar_open_library)):
-        res = func(isbn)
+        kwargs = {"avisos": avisos} if func is buscar_google_books else {}
+        res = func(isbn, **kwargs)
         if not res and len(isbn) == 10:
-            res = func(isbn10_para_13(isbn))
+            res = func(isbn10_para_13(isbn), **kwargs)
         if not res:
             continue
         novos = False
@@ -193,4 +208,5 @@ def buscar(isbn):
     for campo in CAMPOS:
         dados.setdefault(campo, None if campo in ("nota", "nota_qtd") else "")
     dados["fonte"] = " + ".join(fontes)
+    dados["avisos"] = list(dict.fromkeys(avisos))
     return dados

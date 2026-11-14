@@ -42,9 +42,13 @@ def livro_buscar_isbn(request):
     if len(isbn) not in (10, 13):
         return JsonResponse({"erro": "ISBN inválido: deve ter 10 ou 13 dígitos."}, status=400)
 
-    dados = isbn_lookup.buscar(isbn)
+    avisos = []
+    dados = isbn_lookup.buscar(isbn, avisos)
     if not dados:
-        return JsonResponse({"erro": "Nenhum resultado encontrado para este ISBN."}, status=404)
+        erro = "Nenhum resultado encontrado para este ISBN."
+        if avisos:
+            erro += " Atenção: " + "; ".join(dict.fromkeys(avisos)) + "."
+        return JsonResponse({"erro": erro}, status=404)
     return JsonResponse(dados)
 
 
