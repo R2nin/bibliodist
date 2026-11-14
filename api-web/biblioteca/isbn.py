@@ -1,16 +1,19 @@
-"""Busca de metadados de livros pelo ISBN (Google Books + Open Library).
+"""Busca de metadados de livros pelo ISBN (Google Books + isbnsearch.org + Open Library).
 
 Retorna um dict com as chaves:
     titulo, autores, descricao, ano, data_publicacao, editora,
-    capa_url, nota, nota_qtd, fonte
-As fontes são combinadas: o Google Books é consultado primeiro e o
-Open Library completa o que faltar (capa, nota, data...).
+    capa_url, nota, nota_qtd, fonte, avisos
+As fontes são combinadas em ordem: o Google Books é consultado primeiro,
+o isbnsearch.org (página pública, robots.txt permite) e o Open Library
+completam o que faltar (capa, nota, data...).
 """
+import html
 import logging
 import re
 
 import requests
 from django.conf import settings
+from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +113,79 @@ def buscar_google_books(isbn, avisos=None):
         return None
 
 
+# ─── isbnsearch.org (página HTML) ───────────────────────────────────────────
+
+def _autor_legivel(nome):
+    """'Martin, Robert C.' → 'Robert C. Martin' (mantém 'Fulano et al')."""
+    partes = [p.strip() for p in nome.split(",")]
+    if len(partes) == 2 and all(partes) and " " not in partes[0]:
+        return f"{partes[1]} {partes[0]}"
+    return nome.strip()
+
+
+ISBNSEARCH_PAUSA = 10 * 60        # o site limita pedidos por IP (responde 503)
+ISBNSEARCH_CACHE = 24 * 60 * 60
+
+
+def buscar_isbnsearch(isbn, avisos=None):
+    """Lê a página pública do livro. Respeita o limite do site: depois de um
+    503/429, fica ISBNSEARCH_PAUSA segundos sem consultá-lo."""
+    avisos = avisos if avisos is not None else []
+    if cache.get("isbnsearch:pausa"):
+        avisos.append("isbnsearch.org em pausa (limite de consultas do site; tente em alguns minutos)")
+        return None
+    chave_cache = f"isbnsearch:{isbn}"
+    em_cache = cache.get(chave_cache)
+    if em_cache is not None:
+        return em_cache or None
+    resultado = _consultar_isbnsearch(isbn, avisos)
+    if resultado is not False:          # False = falha temporária, não guarda
+        cache.set(chave_cache, resultado or {}, ISBNSEARCH_CACHE)
+    return resultado or None
+
+
+def _consultar_isbnsearch(isbn, avisos):
+    try:
+        r = requests.get(f"https://isbnsearch.org/isbn/{isbn}", timeout=TIMEOUT,
+                         headers={"Accept-Language": "en"})
+        if r.status_code in (429, 503):
+            cache.set("isbnsearch:pausa", True, ISBNSEARCH_PAUSA)
+            logger.warning("isbnsearch.org limitou as consultas (HTTP %s); pausa de %s s",
+                           r.status_code, ISBNSEARCH_PAUSA)
+            avisos.append("isbnsearch.org limitou as consultas; pausa de 10 minutos")
+            return False
+        if r.status_code != 200:
+            return None
+        r.encoding = r.encoding or "utf-8"
+        bloco = re.search(r'<div id="book">(.*?)<p class="clear">', r.text, re.S)
+        if not bloco:  # página de verificação anti-robô ou layout diferente
+            logger.info("isbnsearch.org: página sem dados do livro (ISBN %s)", isbn)
+            return False
+        bloco = bloco.group(1)
+
+        def texto(trecho):
+            return html.unescape(re.sub(r"<[^>]+>", "", trecho)).strip()
+
+        info = {texto(k).rstrip(":").lower(): texto(v) for k, v in
+                re.findall(r"<p><strong>(.*?)</strong>(.*?)</p>", bloco, re.S)}
+        titulo = re.search(r"<h1>(.*?)</h1>", bloco, re.S)
+        capa = re.search(r'<img[^>]+src="(https?://[^"]+)"', bloco)
+        if not titulo or not texto(titulo.group(1)):
+            return None
+        autores = ", ".join(_autor_legivel(a) for a in info.get("author", "").split(";") if a.strip())
+        return {
+            "titulo": texto(titulo.group(1)),
+            "autores": autores,
+            "ano": _ano(info.get("published")),
+            "data_publicacao": _data_br(info.get("published")),
+            "editora": info.get("publisher", ""),
+            "capa_url": _https(html.unescape(capa.group(1))) if capa else "",
+        }
+    except Exception:
+        logger.exception("Erro ao consultar o isbnsearch.org (ISBN %s)", isbn)
+        return False
+
+
 # ─── Open Library ────────────────────────────────────────────────────────────
 
 def _nota_open_library(isbn):
@@ -184,8 +260,11 @@ def buscar(isbn, avisos=None):
 
     avisos = avisos if avisos is not None else []
     dados, fontes = {}, []
-    for nome, func in (("Google Books", buscar_google_books), ("Open Library", buscar_open_library)):
-        kwargs = {"avisos": avisos} if func is buscar_google_books else {}
+    fontes_ordem = (("Google Books", buscar_google_books),
+                    ("isbnsearch.org", buscar_isbnsearch),
+                    ("Open Library", buscar_open_library))
+    for nome, func in fontes_ordem:
+        kwargs = {"avisos": avisos} if func in (buscar_google_books, buscar_isbnsearch) else {}
         res = func(isbn, **kwargs)
         if not res and len(isbn) == 10:
             res = func(isbn10_para_13(isbn), **kwargs)

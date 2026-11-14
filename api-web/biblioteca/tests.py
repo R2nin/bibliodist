@@ -353,8 +353,9 @@ from . import isbn as isbn_lookup
 
 
 class _Resp:
-    def __init__(self, status=200, dados=None):
-        self.status_code, self._dados = status, dados or {}
+    def __init__(self, status=200, dados=None, text=""):
+        self.status_code, self._dados, self.text = status, dados or {}, text
+        self.encoding = "utf-8"
 
     def json(self):
         return self._dados
@@ -364,8 +365,23 @@ class _Resp:
             raise Exception(self.status_code)
 
 
-def _fake_http(google=None, google_status=200, ol=None, ol_obra=None, ol_nota=None, capa_ok=False):
-    def get(url, params=None, timeout=None):
+ISBNSEARCH_HTML = """<html><body><form></form><div id="book">
+  <div class="image"><img src="https://images.isbndb.com/covers/123.jpg" alt="x"></div>
+  <div class="bookinfo"><h1>Algoritmos &amp; Estruturas</h1>
+  <p><strong>ISBN-13:</strong> <a href="/isbn/9788535236996">9788535236996</a></p>
+  <p><strong>Author:</strong> Cormen, Thomas</p>
+  <p><strong>Publisher:</strong> Elsevier</p>
+  <p><strong>Published:</strong> 2012-04</p>
+  </div><p class="clear"></p></div></body></html>"""
+
+
+def _fake_http(google=None, google_status=200, ol=None, ol_obra=None, ol_nota=None, capa_ok=False,
+               isbnsearch=None, isbnsearch_status=200):
+    def get(url, params=None, timeout=None, headers=None):
+        if "isbnsearch.org" in url:
+            if isbnsearch_status != 200:
+                return _Resp(isbnsearch_status)
+            return _Resp(200, text=isbnsearch) if isbnsearch else _Resp(404)
         if "googleapis" in url:
             return _Resp(google_status, {"items": [{"volumeInfo": google}]} if google else {})
         if "api/books" in url:
@@ -391,6 +407,9 @@ GOOGLE = {
 
 
 class BuscaIsbnTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
     def test_normaliza_e_converte_isbn10(self):
         self.assertEqual(isbn_lookup.normalizar_isbn("85-359-0277-5"), "8535902775")
         self.assertEqual(isbn_lookup.isbn10_para_13("8535902775"), "9788535902778")
@@ -445,8 +464,50 @@ class BuscaIsbnTests(TestCase):
         self.assertIsNone(isbn_lookup.buscar("123"))
 
 
+class IsbnSearchTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def test_le_pagina_do_livro(self):
+        with _fake_http(isbnsearch=ISBNSEARCH_HTML):
+            d = isbn_lookup.buscar_isbnsearch("9788535236996")
+        self.assertEqual(d["titulo"], "Algoritmos & Estruturas")
+        self.assertEqual(d["autores"], "Thomas Cormen")
+        self.assertEqual(d["editora"], "Elsevier")
+        self.assertEqual(d["ano"], "2012")
+        self.assertEqual(d["data_publicacao"], "04/2012")
+        self.assertEqual(d["capa_url"], "https://images.isbndb.com/covers/123.jpg")
+
+    def test_complementa_google_e_open_library_completa_nota(self):
+        ol = {"title": "Outro título", "authors": [{"name": "X"}]}
+        with _fake_http(google_status=429, isbnsearch=ISBNSEARCH_HTML, ol=ol,
+                        ol_obra={"works": [{"key": "/works/OL1W"}]}, ol_nota={"average": 4, "count": 3}):
+            d = isbn_lookup.buscar("9788535236996")
+        self.assertEqual(d["titulo"], "Algoritmos & Estruturas")  # isbnsearch antes do Open Library
+        self.assertEqual(d["nota"], 4.0)
+        self.assertEqual(d["fonte"], "isbnsearch.org + Open Library")
+
+    def test_limite_do_site_pausa_consultas(self):
+        with _fake_http(isbnsearch_status=503):
+            avisos = []
+            self.assertIsNone(isbn_lookup.buscar_isbnsearch("9788535236996", avisos))
+            self.assertIn("limitou", avisos[0])
+            avisos = []
+            self.assertIsNone(isbn_lookup.buscar_isbnsearch("9788576082675", avisos))
+            self.assertIn("em pausa", avisos[0])
+            urls = [c.args[0] for c in isbn_lookup.requests.get.call_args_list]
+        self.assertEqual(sum("isbnsearch.org" in u for u in urls), 1)  # não insistiu
+
+    def test_resultado_fica_em_cache(self):
+        with _fake_http(isbnsearch=ISBNSEARCH_HTML):
+            isbn_lookup.buscar_isbnsearch("9788535236996")
+            isbn_lookup.buscar_isbnsearch("9788535236996")
+            self.assertEqual(isbn_lookup.requests.get.call_count, 1)
+
+
 class LivroIsbnViewTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.client.force_login(User.objects.create_user("bib3", password="x", is_staff=True))
 
     def test_view_buscar_isbn(self):
