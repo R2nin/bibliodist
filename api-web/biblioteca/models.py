@@ -46,7 +46,7 @@ class Livro(models.Model):
         ordering = ["titulo"]
 
     def __str__(self):
-        return f"{self.titulo} ({self.ano})"
+        return f"{self.titulo} ({self.ano})" if self.ano else self.titulo
 
     @property
     def exemplares_disponiveis(self):

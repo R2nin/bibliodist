@@ -15,7 +15,7 @@
               {% for livro in livros %}
                 {% with disp=livro.exemplares_disponiveis %}
                 <option value="{{ livro.pk }}" {% if disp <= 0 %}disabled{% endif %}>
-                  {{ livro.titulo }} ({{ livro.autor }})
+                  {{ livro.titulo }}{% if livro.autor %} ({{ livro.autor }}){% endif %}
                   — disp: {{ disp }}/{{ livro.total_exemplares }}
                   {% if disp <= 0 %}[INDISPONÍVEL]{% endif %}
                 </option>

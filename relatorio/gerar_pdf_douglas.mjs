@@ -1,6 +1,8 @@
 import puppeteer from 'puppeteer';
 import { marked } from 'marked';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { resolve } from 'path';
+import { pathToFileURL } from 'url';
 
 const md   = readFileSync('./manual_coolify.md', 'utf8');
 const html = marked(md);
@@ -107,7 +109,19 @@ const page_html = `<!DOCTYPE html>
   /* Destaque de passos numerados */
   h3 {
     page-break-inside: avoid;
+    page-break-after: avoid;
   }
+  /* Prints do guia do administrador */
+  img {
+    display: block;
+    max-width: 100%;
+    margin: 10px auto 18px;
+    border: 1px solid #ccd;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.12);
+    page-break-inside: avoid;
+  }
+  p:has(> img) { page-break-inside: avoid; }
 </style>
 </head>
 <body>
@@ -121,7 +135,12 @@ const browser = await puppeteer.launch({
 });
 
 const page = await browser.newPage();
-await page.setContent(page_html, { waitUntil: 'networkidle0' });
+// As imagens usam caminhos relativos (screenshots/...): carregar a página a
+// partir de um arquivo nesta pasta, em vez de setContent (que não tem base URL).
+const tmp = resolve('./.manual_douglas.html');
+writeFileSync(tmp, page_html);
+await page.goto(pathToFileURL(tmp).href, { waitUntil: 'networkidle0' });
+unlinkSync(tmp);
 
 await page.pdf({
   path: './manual_douglas.pdf',

@@ -22,6 +22,7 @@
 6. [Fluxo Completo de Deploy Automático](#6-fluxo-completo-de-deploy-automático)
 7. [Acesso à Aplicação pela URL](#7-acesso-à-aplicação-pela-url)
 8. [Resultado Final](#8-resultado-final)
+9. [Guia Rápido do Administrador](#9-guia-rápido-do-administrador)
 
 ---
 
@@ -48,10 +49,10 @@ Desenvolvedor
 │      GitHub Actions         │
 │  Workflow: deploy.yml       │
 │                             │
-│  curl COOLIFY_WEBHOOK_URL   │
+│  curl + Bearer COOLIFY_TOKEN│
 └──────────────┬──────────────┘
                │
-               │  HTTP GET (webhook)
+               │  HTTP POST /api/v1/deploy
                ▼
 ┌─────────────────────────────┐
 │          Coolify            │
@@ -63,10 +64,10 @@ Desenvolvedor
 └──────────────┬──────────────┘
                │
                ▼
-  https://bibliodist.187.33.201.107.sslip.io
+  http://bibliodist.187.33.201.107.sslip.io
 ```
 
-**Resumo:** a cada `git push` para o branch `master`, o GitHub Actions dispara automaticamente um webhook que instrui o Coolify a fazer o rebuild e redeploy de todos os containers da aplicação.
+**Resumo:** a cada `git push` para o branch `master`, o GitHub Actions chama automaticamente a API de deploy do Coolify (autenticada por token), que instrui o Coolify a fazer o rebuild e redeploy de todos os containers da aplicação.
 
 ---
 
@@ -225,7 +226,7 @@ No painel do serviço `web`, adicione as variáveis de ambiente:
 | `GRPC_PORT` | `50051` |
 | `DEBUG` | `False` |
 | `ALLOWED_HOSTS` | `bibliodist.187.33.201.107.sslip.io,localhost` |
-| `CSRF_TRUSTED_ORIGINS` | `https://bibliodist.187.33.201.107.sslip.io` |
+| `CSRF_TRUSTED_ORIGINS` | `http://bibliodist.187.33.201.107.sslip.io` (derivado automaticamente de `ALLOWED_HOSTS`) |
 
 ---
 
@@ -234,26 +235,32 @@ No painel do serviço `web`, adicione as variáveis de ambiente:
 No serviço `web`, em **Domains**, adicione:
 
 ```
-https://bibliodist.187.33.201.107.sslip.io
+http://bibliodist.187.33.201.107.sslip.io
 ```
 
 O domínio `sslip.io` é um serviço DNS público que resolve qualquer subdomínio no formato `IP.sslip.io` automaticamente para o IP correspondente. Isso elimina a necessidade de configurar registros DNS manualmente.
 
-O Coolify gera o certificado SSL via **Let's Encrypt** automaticamente para esse domínio.
+> **Situação atual do HTTPS:** o proxy do servidor responde na porta 443 com o certificado de `fema.edu.br`, que não é válido para o subdomínio sslip.io. Por isso o acesso é feito por **HTTP**. Para habilitar HTTPS basta cadastrar o domínio com `https://` em **Domains** e deixar o Coolify emitir o certificado via **Let's Encrypt** — fica como melhoria futura.
 
 ---
 
-### Passo 8 — Obter o Webhook de Deploy
+### Passo 8 — Obter a URL de deploy e o token de API
 
-No Coolify, dentro do projeto, acesse **Settings** → **Webhooks** (ou na barra lateral do recurso).
+A integração precisa de **duas informações** do Coolify:
 
-Copie a **Deploy Webhook URL**. Ela terá o formato:
+**a) Deploy Webhook URL** — na barra lateral do recurso, menu **Webhooks**. Formato:
 
 ```
-https://computacao.fema.edu.br/api/v1/deploy?uuid=XXXXXXXX&token=YYYYYYYY
+https://<servidor-coolify>/api/v1/deploy?uuid=XXXXXXXX&force=false
 ```
 
-Essa URL será usada no próximo passo para integrar com o GitHub Actions.
+**b) API Token** — no Coolify v4 a URL de deploy é um endpoint da API e **exige autenticação**. Para criar o token:
+
+1. No menu principal do Coolify (seta `<` ao lado de *Dashboard*), abra **Keys & Tokens** → **API Tokens**.
+2. Dê um nome (ex.: `github-actions`) e marque apenas a permissão **deploy**.
+3. Clique em criar e **copie o token imediatamente** — ele é exibido uma única vez.
+
+As duas informações serão cadastradas como *secrets* no GitHub no próximo capítulo.
 
 ---
 
@@ -276,20 +283,23 @@ Aguarde todos os containers ficarem com status **Running** (o `migrate` fica **E
 
 O **GitHub Actions** é a plataforma de CI/CD nativa do GitHub. Um arquivo YAML em `.github/workflows/` define quando e como o pipeline é executado.
 
-A integração com o Coolify funciona por **webhook**: o GitHub Actions envia uma requisição HTTP para a URL de webhook do Coolify, que por sua vez inicia o processo de rebuild e redeploy.
+A integração com o Coolify funciona por **webhook autenticado**: o GitHub Actions envia uma requisição HTTP `POST` para a API de deploy do Coolify, com o cabeçalho `Authorization: Bearer <token>`. O Coolify valida o token e inicia o rebuild e redeploy.
 
 ---
 
-### Passo 1 — Adicionar o Webhook como Secret no GitHub
+### Passo 1 — Cadastrar os Secrets no GitHub
 
-No repositório GitHub, acesse:  
+No repositório GitHub, acesse:
 **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
 
-Configure:
-- **Name:** `COOLIFY_WEBHOOK_URL`
-- **Secret:** cole a URL copiada do Coolify no passo anterior
+> Atenção: não confundir com **Deploy keys** (chaves SSH), que fica no mesmo menu e não é usado aqui.
 
-Clique em **Add secret**.
+Cadastre **dois** secrets:
+
+| Name | Secret |
+|---|---|
+| `COOLIFY_WEBHOOK_URL` | URL de deploy copiada do Coolify (Passo 8a) |
+| `COOLIFY_TOKEN` | Token de API criado no Coolify (Passo 8b) |
 
 > O Secret fica criptografado e nunca aparece nos logs do Actions — apenas o próprio workflow pode utilizá-lo.
 
@@ -315,21 +325,45 @@ jobs:
     steps:
       - name: Notificar Coolify via webhook
         run: |
-          curl --silent --fail --show-error \
-            --request GET \
-            "${{ secrets.COOLIFY_WEBHOOK_URL }}"
+          if [ -z "$COOLIFY_WEBHOOK_URL" ] || [ -z "$COOLIFY_TOKEN" ]; then
+            echo "::error::Configure os secrets COOLIFY_WEBHOOK_URL e COOLIFY_TOKEN (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          # Mostra só o caminho da URL (sem domínio nem query/token) para diagnóstico
+          caminho="${COOLIFY_WEBHOOK_URL%%\?*}"
+          echo "Endpoint: /${caminho#*://*/}"
+
+          chamar() {
+            curl --silent --show-error --output resposta.txt --write-out '%{http_code}' \
+              --request "$1" \
+              --header "Authorization: Bearer $COOLIFY_TOKEN" \
+              "$COOLIFY_WEBHOOK_URL"
+          }
+
+          status=$(chamar GET)
+          if [ "$status" = "405" ]; then
+            echo "GET retornou 405, tentando POST..."
+            status=$(chamar POST)
+          fi
+          echo "HTTP $status"
+          head -c 500 resposta.txt; echo
+          case "$status" in 2*) ;; *) exit 1 ;; esac
         env:
           COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
 ```
 
-**Explicação linha a linha:**
+**Explicação:**
 
 | Elemento | Significado |
 |---|---|
 | `on: push: branches: master` | Aciona o pipeline a cada push no branch `master` |
 | `runs-on: ubuntu-latest` | Executa em um runner Linux gratuito do GitHub |
-| `curl --silent --fail` | Chama a URL do webhook; falha com erro se o HTTP não for 2xx |
-| `secrets.COOLIFY_WEBHOOK_URL` | Referência ao secret criado no passo anterior |
+| Verificação inicial (`-z`) | Falha com mensagem clara se algum secret não foi cadastrado |
+| `Endpoint: ...` | Mostra no log só o caminho da URL — nunca o token |
+| `Authorization: Bearer` | Autentica a chamada na API do Coolify com o token |
+| `GET` → `POST` | Tenta `GET`; se o Coolify responder 405, repete com `POST` (o Coolify v4.7 aceita apenas `POST`) |
+| `case "$status" in 2*` | O job só fica verde se a resposta for HTTP 2xx |
 
 ---
 
@@ -340,7 +374,27 @@ Após qualquer `git push` para `master`, acesse:
 
 Você verá o workflow em execução (ícone amarelo) ou concluído (ícone verde ✓).
 
-Clique no workflow para ver os logs de cada step. O step **Notificar Coolify via webhook** deve exibir resposta HTTP 200.
+Clique no workflow para ver os logs de cada step. O step **Notificar Coolify via webhook** deve exibir algo como:
+
+```
+Endpoint: /api/v1/deploy
+GET retornou 405, tentando POST...
+HTTP 200
+{"deployments":[{"message":"Service App: Arthur started. It could take a while, be patient.", ...}]}
+```
+
+### Passo 4 — Problemas encontrados e soluções
+
+Durante a configuração real do pipeline os seguintes erros apareceram, nesta ordem (o GitHub envia um e-mail *"Run failed"* a cada falha):
+
+| Erro no log do Actions | Causa | Solução |
+|---|---|---|
+| `curl: option : blank argument` | Secret `COOLIFY_WEBHOOK_URL` não cadastrado (chega vazio) | Cadastrar o secret (Passo 1) |
+| `HTTP 401` (Unauthorized) | A API de deploy do Coolify exige token | Criar o API Token (Passo 8b) e cadastrar `COOLIFY_TOKEN` |
+| `HTTP 405` (Method Not Allowed) | O Coolify v4.7 não aceita `GET` nesse endpoint | Workflow refaz a chamada com `POST` |
+| `HTTP 200` | — | Deploy iniciado com sucesso ✓ |
+
+Para repetir um workflow que falhou sem fazer novo commit: aba **Actions** → abrir a execução → **Re-run jobs** (ou `gh run rerun <id>` no terminal).
 
 ---
 
@@ -363,7 +417,8 @@ Após toda a configuração, o fluxo se torna completamente automático:
 4. GitHub detecta o push → dispara o workflow deploy.yml
          │
          ▼
-5. GitHub Actions executa: curl COOLIFY_WEBHOOK_URL
+5. GitHub Actions executa: curl POST COOLIFY_WEBHOOK_URL
+   (cabeçalho Authorization: Bearer COOLIFY_TOKEN)
          │
          ▼
 6. Coolify recebe o webhook → inicia rebuild
@@ -375,18 +430,18 @@ Após toda a configuração, o fluxo se torna completamente automático:
          │
          ▼
 7. Nova versão disponível em ~2-3 minutos
-   https://bibliodist.187.33.201.107.sslip.io
+   http://bibliodist.187.33.201.107.sslip.io
 ```
 
 ### Exemplo real de deploy
 
-Commit `c9bef1b` — *fix: remover SCRIPT_NAME do environ no wsgi.py*:
+Commit `9e09c10` — *ci: tentar POST no deploy do Coolify quando GET retorna 405* (14/11/2026):
 
-1. Push realizado às 14:32
-2. GitHub Actions iniciou às 14:32 (latência < 10 s)
-3. Webhook enviado ao Coolify às 14:32
-4. Rebuild concluído às 14:34 (~2 min de build)
-5. Correção disponível em produção às 14:34
+1. `git push origin master`
+2. GitHub Actions iniciou o workflow em poucos segundos
+3. Chamada à API do Coolify: `HTTP 200` — *"Service App: Arthur started"*
+4. Coolify recompilou as imagens e recriou os containers
+5. Aplicação permaneceu respondendo durante o redeploy (monitorada a cada 30 s)
 
 ---
 
@@ -395,14 +450,14 @@ Commit `c9bef1b` — *fix: remover SCRIPT_NAME do environ no wsgi.py*:
 ### Como o roteamento funciona no Coolify
 
 O Coolify usa o **Traefik** como proxy reverso. O Traefik:
-1. Escuta nas portas 80 (HTTP) e 443 (HTTPS)
+1. Escuta nas portas 80 (HTTP) e 443 (HTTPS) — o BiblioDist usa hoje a porta 80
 2. Lê os labels Docker de cada container para saber qual domínio rotear
-3. Obtém e renova certificados SSL automaticamente via Let's Encrypt
+3. Pode obter e renovar certificados SSL via Let's Encrypt (ver observação sobre HTTPS no Passo 7)
 
 ```
 Internet
    │
-   │ HTTPS :443
+   │ HTTP :80
    ▼
 ┌──────────────────────────────────────┐
 │   Traefik (proxy reverso)            │
@@ -438,19 +493,19 @@ A URL técnica gerada pelo sslip.io (`bibliodist.187.33.201.107.sslip.io`) é lo
 | | URL |
 |---|---|
 | **Acesso rápido (TinyURL)** | `https://tinyurl.com/femabibv2` |
-| URL técnica completa | `https://bibliodist.187.33.201.107.sslip.io` |
+| URL técnica completa | `http://bibliodist.187.33.201.107.sslip.io` |
 
-O TinyURL redireciona automaticamente (HTTP 301) para a URL original no Coolify, sem qualquer configuração adicional no servidor.
+O TinyURL redireciona automaticamente (HTTP 301) para `http://bibliodist.187.33.201.107.sslip.io/login/`, sem qualquer configuração adicional no servidor.
 
 ### URLs disponíveis em produção
 
 | Serviço | URL |
 |---|---|
 | Aplicação principal | `https://tinyurl.com/femabibv2` |
-| Login | `https://bibliodist.187.33.201.107.sslip.io/accounts/login/` |
-| Painel Admin | `https://bibliodist.187.33.201.107.sslip.io/admin/` |
-| Revisão PRISMA | `https://bibliodist.187.33.201.107.sslip.io/prisma/` |
-| Lista de Livros | `https://bibliodist.187.33.201.107.sslip.io/livros/` |
+| Login | `http://bibliodist.187.33.201.107.sslip.io/login/` |
+| Painel Admin | `http://bibliodist.187.33.201.107.sslip.io/admin/` |
+| Revisão PRISMA | `http://bibliodist.187.33.201.107.sslip.io/prisma/` |
+| Lista de Livros | `http://bibliodist.187.33.201.107.sslip.io/livros/` |
 
 ---
 
@@ -473,10 +528,10 @@ O TinyURL redireciona automaticamente (HTTP 301) para a URL original no Coolify,
 |---|---|---|
 | Versionamento do código | Git + GitHub | Manual (git push) |
 | Execução do pipeline | GitHub Actions | Automático (push no master) |
-| Notificação de deploy | curl webhook | Automático (Actions) |
+| Notificação de deploy | curl POST + token de API | Automático (Actions) |
 | Build das imagens | Docker (no servidor) | Automático (Coolify) |
 | Deploy dos containers | Docker Compose | Automático (Coolify) |
-| Roteamento + SSL | Traefik + Let's Encrypt | Automático (Coolify) |
+| Roteamento (proxy reverso) | Traefik | Automático (Coolify) |
 
 ### Repositório
 
@@ -488,6 +543,82 @@ Todos os arquivos de configuração do CI/CD estão versionados no repositório:
 
 ---
 
-> **Observação:** Este documento reflete o estado do projeto em 11 de novembro de 2026. Até a data limite de entrega (17/11/2026), novas funcionalidades poderão ser incorporadas ao sistema e documentadas em versão atualizada deste manual.
+## 9. Guia Rápido do Administrador
+
+Este capítulo mostra o uso do BiblioDist com o perfil de **administrador**. As telas abaixo foram capturadas com o acervo real da biblioteca da FEMA carregado (**12.020 títulos / 36.399 exemplares**).
+
+### Perfis de acesso
+
+| Perfil | Pode fazer |
+|---|---|
+| **Superadmin** | Tudo, inclusive criar usuários e redefinir senhas (menu **Usuários**) |
+| **Administrador** | Cadastrar e editar livros, autores, categorias e leitores; registrar empréstimos e devoluções; ver logs |
+| **Usuário normal** | Apenas consultar o acervo (busca e detalhes dos livros) |
+
+### 9.1 Entrar no sistema
+
+Acesse `https://tinyurl.com/femabibv2` (ou a URL técnica) e informe usuário e senha.
+
+![Tela de login](screenshots/manual/01_login.png)
+
+### 9.2 Painel inicial
+
+Após o login, o painel mostra os totais do acervo (títulos, exemplares, leitores e empréstimos ativos) e atalhos para as funções principais. O menu superior dá acesso a todas as telas.
+
+![Painel inicial](screenshots/manual/02_inicio.png)
+
+### 9.3 Consultar o acervo
+
+Em **Livros**, digite parte do título, da chapa ou do tombo e clique em **Buscar**. As colunas podem ser ordenadas clicando no cabeçalho; a coluna **Disponíveis** indica quantos exemplares estão livres para empréstimo.
+
+![Busca no acervo](screenshots/manual/04_livros_busca.png)
+
+Clicando no título, abre-se a ficha do livro com tombo, grupo/chapa, data de aquisição e disponibilidade.
+
+![Detalhe do livro](screenshots/manual/05_livro_detalhe.png)
+
+### 9.4 Cadastrar um livro
+
+Em **Livros → + Novo Livro**, preencha o título e os demais dados. Informando o **ISBN** e clicando em **Buscar**, o sistema consulta o Google Books / Open Library e preenche título, ano e resumo automaticamente.
+
+![Cadastro de livro](screenshots/manual/06_livro_novo.png)
+
+### 9.5 Cadastrar leitores
+
+Em **Leitores → + Novo Leitor**, cadastre nome, e-mail e matrícula. Só leitores cadastrados podem receber empréstimos.
+
+![Leitores](screenshots/manual/07_leitores.png)
+
+### 9.6 Registrar um empréstimo
+
+Em **Empréstimos → + Novo Empréstimo**, escolha o livro (o seletor mostra a disponibilidade), o leitor e a data prevista de devolução, e clique em **Registrar Empréstimo**.
+
+![Novo empréstimo](screenshots/manual/08_emprestimo_novo.png)
+
+Por trás dessa tela atuam os serviços distribuídos: o Django consulta a disponibilidade e registra o empréstimo no **servidor gRPC**, que publica uma mensagem no **RabbitMQ**; o **worker** consome a mensagem e gera a notificação ao leitor. A mensagem *"registrado com sucesso via gRPC"* confirma o caminho completo. Se o gRPC estiver fora do ar, o empréstimo é gravado em **modo local** e o fato fica registrado nos logs.
+
+![Lista de empréstimos](screenshots/manual/09_emprestimos.png)
+
+### 9.7 Registrar a devolução
+
+Na lista de empréstimos, clique em **Devolver** na linha do empréstimo ativo e confirme. O exemplar volta a ficar disponível e o worker gera a notificação de devolução.
+
+![Devolução](screenshots/manual/10_devolucao.png)
+
+### 9.8 Acompanhar os logs
+
+Em **Logs**, o administrador vê o histórico de operações — logins, buscas, consultas, empréstimos e devoluções — com data/hora e usuário. O filtro no topo permite ver apenas um tipo de operação.
+
+![Logs de operações](screenshots/manual/11_logs.png)
+
+### 9.9 Gerenciar usuários (Superadmin)
+
+Em **Usuários → Novo Usuário**, o superadmin cria contas escolhendo o perfil (administrador ou normal) e pode redefinir senhas. Para tarefas avançadas, o menu **Admin** abre o painel administrativo do Django.
+
+![Usuários](screenshots/manual/12_usuarios.png)
+
+---
+
+> **Observação:** Este documento reflete o estado do projeto em 14 de novembro de 2026.
 
 *Manual elaborado como parte da avaliação da disciplina de Sistemas Operacionais II — FEMA, Novembro de 2026.*
