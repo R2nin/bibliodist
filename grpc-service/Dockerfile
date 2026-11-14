@@ -2,6 +2,8 @@ FROM python:3.12-slim
 
 # grpc-service/server.py faz: BASE_DIR = Path(__file__).parent.parent / "api-web"
 # Logo api-web precisa estar em /app/api-web e server.py em /app/grpc-service/
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app/grpc-service
 
 COPY grpc-service/requirements.txt .

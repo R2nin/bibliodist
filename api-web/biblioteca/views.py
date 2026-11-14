@@ -497,6 +497,8 @@ def emprestimo_create(request):
                 leitor_id=int(leitor_id),
                 data_prevista=data_prevista,
             )
+            nome_op = request.user.get_full_name() or request.user.username
+            _log(request, "emprestimo", f'Usuário "{nome_op}" registrou empréstimo de "{livro.titulo}" para {emp.leitor.nome} (modo local, gRPC indisponível).')
             messages.success(request, f"Empréstimo #{emp.pk} registrado com sucesso (serviço gRPC indisponível, modo local).")
             return redirect("emprestimo_list")
 
@@ -510,6 +512,7 @@ def emprestimo_create(request):
                 messages.success(request, resultado["mensagem"])
             else:
                 messages.error(request, f'[gRPC] {resultado["mensagem"]}')
+                return redirect("emprestimo_list")
         except ConnectionError:
             messages.error(request, "Serviço gRPC ficou indisponível durante o registro. Tente novamente.")
             return render(request, "biblioteca/emprestimo_form.html", {
