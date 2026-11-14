@@ -39,6 +39,11 @@ class Livro(models.Model):
     data_aquisicao = models.DateField(null=True, blank=True)
     chapa = models.CharField(max_length=500, null=True, blank=True)
     descricao = models.TextField(null=True, blank=True)
+    editora = models.CharField(max_length=200, blank=True, default="")
+    data_publicacao = models.CharField("data de publicação", max_length=20, blank=True, default="")
+    capa_url = models.URLField("capa (URL)", max_length=500, blank=True, default="")
+    nota = models.DecimalField("nota média", max_digits=3, decimal_places=2, null=True, blank=True)
+    nota_qtd = models.PositiveIntegerField("nº de avaliações", null=True, blank=True)
 
     class Meta:
         verbose_name = "Livro"

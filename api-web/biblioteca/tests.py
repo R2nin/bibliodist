@@ -345,3 +345,127 @@ class PaginacaoTests(TestCase):
     def test_pagina_fora_do_intervalo_vai_para_a_ultima(self):
         r = self.client.get(reverse("livro_list"), {"page": 999})
         self.assertEqual(r.context["page_obj"].number, 4)
+
+
+# ─── Busca por ISBN (Google Books + Open Library) ───────────────────────────
+
+from . import isbn as isbn_lookup
+
+
+class _Resp:
+    def __init__(self, status=200, dados=None):
+        self.status_code, self._dados = status, dados or {}
+
+    def json(self):
+        return self._dados
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise Exception(self.status_code)
+
+
+def _fake_http(google=None, google_status=200, ol=None, ol_obra=None, ol_nota=None, capa_ok=False):
+    def get(url, params=None, timeout=None):
+        if "googleapis" in url:
+            return _Resp(google_status, {"items": [{"volumeInfo": google}]} if google else {})
+        if "api/books" in url:
+            return _Resp(200, {f"ISBN:{params['bibkeys'][5:]}": ol} if ol else {})
+        if "/isbn/" in url:
+            return _Resp(200, ol_obra) if ol_obra else _Resp(404)
+        if "ratings.json" in url:
+            return _Resp(200, {"summary": ol_nota or {}})
+        return _Resp(404)
+
+    def head(url, timeout=None, allow_redirects=None):
+        return _Resp(200 if capa_ok else 404)
+
+    return mock.patch.multiple(isbn_lookup.requests, get=mock.Mock(side_effect=get),
+                               head=mock.Mock(side_effect=head))
+
+
+GOOGLE = {
+    "title": "Código Limpo", "authors": ["Robert C. Martin"], "publishedDate": "2009-08-14",
+    "publisher": "Alta Books", "description": "Habilidades práticas", "averageRating": 4.5,
+    "ratingsCount": 12, "imageLinks": {"thumbnail": "http://books.google.com/x?id=1&edge=curl"},
+}
+
+
+class BuscaIsbnTests(TestCase):
+    def test_normaliza_e_converte_isbn10(self):
+        self.assertEqual(isbn_lookup.normalizar_isbn("85-359-0277-5"), "8535902775")
+        self.assertEqual(isbn_lookup.isbn10_para_13("8535902775"), "9788535902778")
+        self.assertEqual(isbn_lookup.isbn10_para_13("0132350882"), "9780132350884")
+
+    def test_google_completo(self):
+        with _fake_http(google=GOOGLE):
+            d = isbn_lookup.buscar("978-85-7608-267-5")
+        self.assertEqual(d["titulo"], "Código Limpo")
+        self.assertEqual(d["autores"], "Robert C. Martin")
+        self.assertEqual(d["ano"], "2009")
+        self.assertEqual(d["data_publicacao"], "14/08/2009")
+        self.assertEqual(d["nota"], 4.5)
+        self.assertEqual(d["nota_qtd"], 12)
+        self.assertEqual(d["capa_url"], "https://books.google.com/x?id=1")
+        self.assertTrue(d["fonte"].startswith("Google Books"))
+
+    def test_cota_google_esgotada_usa_open_library(self):
+        ol = {"title": "Clean Code", "authors": [{"name": "Robert Martin"}], "publish_date": "Aug 1, 2008",
+              "publishers": [{"name": "Prentice Hall"}], "cover": {"large": "http://covers.openlibrary.org/b/1-L.jpg"}}
+        with _fake_http(google_status=429, ol=ol, ol_obra={"works": [{"key": "/works/OL1W"}]},
+                        ol_nota={"average": 4.236, "count": 50}):
+            d = isbn_lookup.buscar("9780132350884")
+        self.assertEqual(d["titulo"], "Clean Code")
+        self.assertEqual(d["ano"], "2008")
+        self.assertEqual(d["data_publicacao"], "01/08/2008")
+        self.assertEqual(d["editora"], "Prentice Hall")
+        self.assertEqual(d["capa_url"], "https://covers.openlibrary.org/b/1-L.jpg")
+        self.assertEqual((d["nota"], d["nota_qtd"]), (4.24, 50))
+        self.assertEqual(d["fonte"], "Open Library")
+
+    def test_open_library_completa_capa_que_falta_no_google(self):
+        g = dict(GOOGLE, imageLinks={}, averageRating=None, ratingsCount=None)
+        with _fake_http(google=g, ol={"title": "Clean", "cover": {"medium": "https://c/x.jpg"}}):
+            d = isbn_lookup.buscar("9788576082675")
+        self.assertEqual(d["titulo"], "Código Limpo")  # Google tem prioridade
+        self.assertEqual(d["capa_url"], "https://c/x.jpg")
+        self.assertIsNone(d["nota"])
+        self.assertEqual(d["fonte"], "Google Books + Open Library")
+
+    def test_nada_encontrado(self):
+        with _fake_http():
+            self.assertIsNone(isbn_lookup.buscar("9788576082675"))
+        self.assertIsNone(isbn_lookup.buscar("123"))
+
+
+class LivroIsbnViewTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_user("bib3", password="x", is_staff=True))
+
+    def test_view_buscar_isbn(self):
+        with _fake_http(google=GOOGLE):
+            r = self.client.get(reverse("livro_buscar_isbn"), {"isbn": "9788576082675"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["nota"], 4.5)
+        r = self.client.get(reverse("livro_buscar_isbn"), {"isbn": "12ab"})
+        self.assertEqual(r.status_code, 400)
+
+    def test_criar_e_editar_salva_metadados(self):
+        self.client.post(reverse("livro_create"), {
+            "titulo": "Código Limpo", "isbn": "9788576082675", "total_exemplares": "1",
+            "editora": "Alta Books", "data_publicacao": "2009-08-14",
+            "capa_url": "https://books.google.com/x?id=1", "nota": "4,5", "nota_qtd": "12",
+        })
+        livro = Livro.objects.get(isbn="9788576082675")
+        self.assertEqual(str(livro.nota), "4.50")
+        self.assertEqual(livro.nota_qtd, 12)
+        self.assertEqual(livro.editora, "Alta Books")
+        r = self.client.get(reverse("livro_detail", args=[livro.pk]))
+        self.assertContains(r, "https://books.google.com/x?id=1")
+        self.assertContains(r, "bi-star-half")
+        # URL não http(s) e nota fora da faixa são descartadas
+        self.client.post(reverse("livro_edit", args=[livro.pk]), {
+            "titulo": "Código Limpo", "isbn": "9788576082675", "capa_url": "javascript:alert(1)", "nota": "9",
+        })
+        livro.refresh_from_db()
+        self.assertEqual(livro.capa_url, "")
+        self.assertIsNone(livro.nota)

@@ -48,6 +48,25 @@
 
   <!-- Coluna lateral com metadados -->
   <div class="col-lg-4">
+    {% if livro.capa_url or livro.nota is not None %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-body text-center">
+        {% if livro.capa_url %}
+          <img src="{{ livro.capa_url }}" alt="Capa de {{ livro.titulo }}" class="img-fluid rounded shadow-sm"
+               style="max-height:280px;" referrerpolicy="no-referrer" onerror="this.remove()">
+        {% endif %}
+        {% if livro.nota is not None %}
+          <div class="mt-3" title="Nota média nas fontes de busca por ISBN">
+            <span class="text-warning fs-5">{% estrelas livro.nota %}</span>
+            <div class="small text-muted">
+              <strong class="text-body">{{ livro.nota|floatformat:1 }}</strong> / 5
+              {% if livro.nota_qtd %}· {{ livro.nota_qtd }} avaliaç{{ livro.nota_qtd|pluralize:"ão,ões" }}{% endif %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
     <div class="card shadow-sm">
       <div class="card-header">
         <i class="bi bi-info-circle me-1"></i>Informações
@@ -74,6 +93,20 @@
         <li class="list-group-item d-flex justify-content-between py-3">
           <span class="text-muted small">Ano</span>
           <span class="fw-semibold">{{ livro.ano }}</span>
+        </li>
+        {% endif %}
+
+        {% if livro.editora %}
+        <li class="list-group-item d-flex justify-content-between py-3 gap-3">
+          <span class="text-muted small">Editora</span>
+          <span class="fw-semibold text-end">{{ livro.editora }}</span>
+        </li>
+        {% endif %}
+
+        {% if livro.data_publicacao %}
+        <li class="list-group-item d-flex justify-content-between py-3">
+          <span class="text-muted small">Publicação</span>
+          <span class="fw-semibold">{{ livro.data_publicacao }}</span>
         </li>
         {% endif %}
 

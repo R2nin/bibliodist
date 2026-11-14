@@ -128,6 +128,9 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", "True")
 EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", "False")
 EMAIL_TIMEOUT = 15
+
+# Busca por ISBN: chave gratuita do Google Books (sem ela, usa a cota anônima compartilhada)
+GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY", "")
 EMAIL_BACKEND = (
     "django.core.mail.backends.smtp.EmailBackend" if EMAIL_HOST
     else "django.core.mail.backends.console.EmailBackend"

@@ -54,6 +54,50 @@
               <div class="form-text">Segure Ctrl para selecionar mais de uma.</div>
             </div>
           </div>
+          <div class="row g-3 mb-3">
+            <div class="col-sm-3 text-center">
+              <div class="border rounded d-flex align-items-center justify-content-center bg-body-tertiary mx-auto"
+                   style="width:110px;height:160px;overflow:hidden;">
+                <img id="capa_preview" src="{{ obj.capa_url|default:'' }}" alt="Capa do livro"
+                     class="{% if not obj.capa_url %}d-none{% endif %}" style="max-width:100%;max-height:100%;"
+                     onerror="this.classList.add('d-none');document.getElementById('capa_vazia').classList.remove('d-none');">
+                <span id="capa_vazia" class="text-muted small {% if obj.capa_url %}d-none{% endif %}">
+                  <i class="bi bi-image fs-3 d-block"></i>Sem capa
+                </span>
+              </div>
+            </div>
+            <div class="col-sm-9">
+              <div class="row">
+                <div class="col-md-7 mb-3">
+                  <label class="form-label" for="id_editora">Editora</label>
+                  <input type="text" name="editora" id="id_editora" class="form-control" maxlength="200"
+                         value="{{ obj.editora|default:'' }}">
+                </div>
+                <div class="col-md-5 mb-3">
+                  <label class="form-label" for="id_data_publicacao">Data de publicação</label>
+                  <input type="text" name="data_publicacao" id="id_data_publicacao" class="form-control" maxlength="20"
+                         value="{{ obj.data_publicacao|default:'' }}" placeholder="ex.: 14/08/2009">
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-7 mb-3">
+                  <label class="form-label" for="id_capa_url">Capa (URL da imagem)</label>
+                  <input type="url" name="capa_url" id="id_capa_url" class="form-control" maxlength="500"
+                         value="{{ obj.capa_url|default:'' }}" placeholder="https://…">
+                </div>
+                <div class="col-md-5 mb-3">
+                  <label class="form-label" for="id_nota">Nota (0 a 5)</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-star-fill text-warning"></i></span>
+                    <input type="number" name="nota" id="id_nota" class="form-control" min="0" max="5" step="0.01"
+                           value="{{ obj.nota|default_if_none:''|stringformat:'s' }}">
+                    <input type="number" name="nota_qtd" id="id_nota_qtd" class="form-control" min="0"
+                           value="{{ obj.nota_qtd|default_if_none:'' }}" title="Número de avaliações" placeholder="nº aval.">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="mb-4">
             <label class="form-label">Descrição / Resumo</label>
             <textarea name="descricao" id="id_descricao" class="form-control" rows="5"
@@ -72,6 +116,18 @@
 
 {% block extra_js %}
 <script>
+function mostrarCapa() {
+  const url = document.getElementById('id_capa_url').value.trim();
+  const img = document.getElementById('capa_preview');
+  const vazia = document.getElementById('capa_vazia');
+  if (url) { img.src = url; img.classList.remove('d-none'); vazia.classList.add('d-none'); }
+  else { img.removeAttribute('src'); img.classList.add('d-none'); vazia.classList.remove('d-none'); }
+}
+document.getElementById('id_capa_url').addEventListener('change', mostrarCapa);
+// Enter no campo ISBN busca em vez de enviar o formulário
+document.getElementById('id_isbn').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btn_buscar_isbn').click(); }
+});
 document.getElementById('btn_buscar_isbn').addEventListener('click', function () {
   const isbn = document.getElementById('id_isbn').value.trim();
   const status = document.getElementById('isbn_status');
@@ -86,9 +142,16 @@ document.getElementById('btn_buscar_isbn').addEventListener('click', function ()
     .then(({ ok, d }) => {
       if (!ok) { status.textContent = d.erro || 'Nenhum resultado.'; status.style.color = '#dc3545'; return; }
 
-      if (d.titulo)    document.querySelector('[name=titulo]').value = d.titulo;
-      if (d.ano)       document.querySelector('[name=ano]').value = d.ano;
-      if (d.descricao) document.getElementById('id_descricao').value = d.descricao;
+      const set = (sel, v) => { if (v !== null && v !== undefined && v !== '') document.querySelector(sel).value = v; };
+      set('[name=titulo]', d.titulo);
+      set('[name=ano]', d.ano);
+      set('#id_descricao', d.descricao);
+      set('#id_editora', d.editora);
+      set('#id_data_publicacao', d.data_publicacao);
+      set('#id_capa_url', d.capa_url);
+      set('#id_nota', d.nota);
+      set('#id_nota_qtd', d.nota_qtd);
+      mostrarCapa();
 
       // Tenta auto-selecionar o autor no dropdown
       const autorHint = document.getElementById('autor_hint');
@@ -105,13 +168,18 @@ document.getElementById('btn_buscar_isbn').addEventListener('click', function ()
           }
         }
         if (!encontrado) {
-          autorHint.innerHTML = `Autor da API: <strong>${d.autores}</strong> — não cadastrado. <a href="/autores/novo/?nome=${encodeURIComponent(d.autores)}" target="_blank">Cadastrar agora</a>`;
+          const esc = t => t.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+          autorHint.innerHTML = `Autor da API: <strong>${esc(d.autores)}</strong> — não cadastrado. <a href="/autores/novo/?nome=${encodeURIComponent(d.autores)}" target="_blank">Cadastrar agora</a>`;
           autorHint.style.color = '#e67e22';
         }
       }
 
-      const semDesc = !d.descricao ? ' (resumo não disponível nesta API)' : '';
-      status.textContent = 'Dados preenchidos' + semDesc + '.';
+      const faltando = [];
+      if (!d.descricao) faltando.push('resumo');
+      if (!d.capa_url) faltando.push('capa');
+      if (d.nota === null || d.nota === undefined) faltando.push('nota');
+      status.textContent = 'Dados preenchidos' + (d.fonte ? ` (fonte: ${d.fonte})` : '') +
+        (faltando.length ? ` — sem ${faltando.join(', ')} nas fontes consultadas` : '') + '.';
       status.style.color = '#198754';
     })
     .catch(() => { status.textContent = 'Erro ao conectar.'; status.style.color = '#dc3545'; })
