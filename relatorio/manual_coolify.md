@@ -228,6 +228,17 @@ No painel do serviço `web`, adicione as variáveis de ambiente:
 | `ALLOWED_HOSTS` | `bibliodist.187.33.201.107.sslip.io,localhost` |
 | `CSRF_TRUSTED_ORIGINS` | `http://bibliodist.187.33.201.107.sslip.io` (derivado automaticamente de `ALLOWED_HOSTS`) |
 
+Para o envio de e-mails de cobrança (seção 9.8), configure também o SMTP. Com Gmail, use uma **senha de app** (Conta Google → Segurança → Senhas de app; exige verificação em duas etapas), nunca a senha normal da conta:
+
+| Variável | Valor |
+|---|---|
+| `EMAIL_HOST` | `smtp.gmail.com` |
+| `EMAIL_HOST_USER` | endereço Gmail remetente |
+| `EMAIL_HOST_PASSWORD` | senha de app de 16 letras |
+| `EMAIL_PORT` / `EMAIL_USE_TLS` | opcionais — padrão `587` / `True` |
+
+Essas variáveis precisam estar referenciadas no compose do serviço `web` (`EMAIL_HOST: ${EMAIL_HOST:-}` etc.), como já está no `docker-compose.coolify.yml`. Sem `EMAIL_HOST`, o sistema continua funcionando, mas o e-mail é apenas registrado no log do servidor.
+
 ---
 
 ### Passo 7 — Configurar o domínio
@@ -605,13 +616,29 @@ Na lista de empréstimos, clique em **Devolver** na linha do empréstimo ativo e
 
 ![Devolução](screenshots/manual/10_devolucao.png)
 
-### 9.8 Acompanhar os logs
+### 9.8 Empréstimos em atraso: renovar ou cobrar por e-mail
 
-Em **Logs**, o administrador vê o histórico de operações — logins, buscas, consultas, empréstimos e devoluções — com data/hora e usuário. O filtro no topo permite ver apenas um tipo de operação.
+Quando a data prevista de devolução passa, o empréstimo muda automaticamente para **Atrasado** (selo vermelho) e a coluna *Ação* passa a oferecer três opções: **Devolver**, **Renovar** e **E-mail**. O filtro *Atrasado* no topo da lista mostra só esses casos.
+
+![Empréstimo em atraso](screenshots/manual/14_emprestimo_atrasado.png)
+
+**Renovar** abre uma tela para escolher a nova data de devolução (sugere hoje + 7 dias e só aceita datas futuras). Ao confirmar, o empréstimo volta ao status **Ativo** com o novo prazo.
+
+![Renovar empréstimo](screenshots/manual/15_renovar.png)
+
+**E-mail** mostra uma pré-visualização da cobrança já preenchida com o livro, as datas e os dias de atraso; o texto pode ser ajustado antes de clicar em **Enviar e-mail**. A mensagem sai pelo SMTP configurado no Coolify (seção 4, Passo 6) para o e-mail cadastrado do leitor.
+
+![Enviar e-mail de cobrança](screenshots/manual/16_cobrar.png)
+
+Tanto a renovação quanto a cobrança seguem o mesmo caminho distribuído dos empréstimos: o evento é publicado no **RabbitMQ**, o **worker** gera a notificação do leitor, e a operação fica registrada nos **Logs** (tipos *Renovação* e *Cobrança*).
+
+### 9.9 Acompanhar os logs
+
+Em **Logs**, o administrador vê o histórico de operações — logins, buscas, consultas, empréstimos, devoluções, renovações e cobranças por e-mail — com data/hora e usuário. O filtro no topo permite ver apenas um tipo de operação.
 
 ![Logs de operações](screenshots/manual/11_logs.png)
 
-### 9.9 Gerenciar usuários (Superadmin)
+### 9.10 Gerenciar usuários (Superadmin)
 
 Em **Usuários → Novo Usuário**, o superadmin cria contas escolhendo o perfil (administrador ou normal) e pode redefinir senhas. Para tarefas avançadas, o menu **Admin** abre o painel administrativo do Django.
 

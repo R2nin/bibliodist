@@ -3,6 +3,7 @@
 // Uso: node screenshot_manual.mjs
 import puppeteer from 'puppeteer';
 import { mkdirSync } from 'fs';
+import { execSync } from 'child_process';
 
 const BASE = 'http://localhost:8000';
 const OUT = './screenshots/manual';
@@ -67,6 +68,39 @@ await shot('09_emprestimos');
 const devolver = await page.$eval('a[href*="/devolver/"]', a => a.getAttribute('href'));
 await ir(devolver);
 await shot('10_devolucao');
+
+// 8b. Empréstimo em atraso: cria um com data prevista no passado,
+// fotografa a lista filtrada, a renovação e a cobrança, e depois devolve.
+await ir('/emprestimos/novo/');
+await page.select('select[name=livro]', livroVal);
+await page.select('select[name=leitor]', leitorVal);
+await page.$eval('input[name=data_prevista]', el => { el.value = '2026-11-09'; });
+const [btn2] = await page.$$('xpath/.//button[contains(., "Registrar Empréstimo")]');
+await Promise.all([btn2.click(), page.waitForNavigation({ waitUntil: 'networkidle2' })]);
+// o formulário grava a data de hoje como data do empréstimo; recua para 20/10
+// para o exemplo ficar coerente (empréstimo antes da data prevista)
+execSync(
+  'docker compose exec -T web python manage.py shell -c "' +
+  "from biblioteca.models import Emprestimo; import datetime; " +
+  "e = Emprestimo.objects.filter(data_prevista=datetime.date(2026, 11, 9)).latest('pk'); " +
+  "e.data_emprestimo = datetime.date(2026, 10, 20); e.save()" + '"',
+  { cwd: '..', stdio: 'inherit', env: { ...process.env, MSYS_NO_PATHCONV: '1' } },
+);
+await ir('/emprestimos/?status=atrasado');
+await shot('14_emprestimo_atrasado');
+const renovar = await page.$eval('a[href*="/renovar/"]', a => a.getAttribute('href'));
+await ir(renovar);
+await shot('15_renovar');
+await ir(renovar.replace('/renovar/', '/cobrar/'));
+// em produção o SMTP está configurado; o aviso "SMTP não configurado" é só do ambiente local
+await page.$$eval('.alert-warning', els => els.forEach(e => e.remove()));
+await shot('16_cobrar', { fullPage: true });
+// limpa: devolve o empréstimo atrasado de exemplo
+await ir(renovar.replace('/renovar/', '/devolver/'));
+await Promise.all([
+  page.click('main form button[type=submit], .card form button[type=submit]'),
+  page.waitForNavigation({ waitUntil: 'networkidle2' }),
+]);
 
 // 9. Logs de operações
 await ir('/logs/');
