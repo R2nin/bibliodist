@@ -13,8 +13,14 @@ jobs:
     steps:
       - name: Notificar Coolify via webhook
         run: |
+          if [ -z "$COOLIFY_WEBHOOK_URL" ] || [ -z "$COOLIFY_TOKEN" ]; then
+            echo "::error::Configure os secrets COOLIFY_WEBHOOK_URL e COOLIFY_TOKEN (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
           curl --silent --fail --show-error \
             --request GET \
-            "${{ secrets.COOLIFY_WEBHOOK_URL }}"
+            --header "Authorization: Bearer $COOLIFY_TOKEN" \
+            "$COOLIFY_WEBHOOK_URL"
         env:
           COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
