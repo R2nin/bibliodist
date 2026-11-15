@@ -1,41 +1,67 @@
 {% extends "base.html" %}
 {% block title %}Novo Empréstimo — BiblioDist{% endblock %}
 {% block content %}
+<style>
+  .ac { position: relative; }
+  .ac-lista { position: absolute; z-index: 1050; left: 0; right: 0; top: 100%;
+              max-height: 340px; overflow-y: auto; }
+  .ac-lista .list-group-item { cursor: pointer; }
+  .ac-lista .list-group-item.ativo { background: var(--bs-primary-bg-subtle); }
+  .ac-lista .list-group-item.disabled { cursor: not-allowed; }
+</style>
 <div class="row justify-content-center">
-  <div class="col-md-7">
+  <div class="col-md-8">
     <h2>Novo Empréstimo</h2>
     <div class="card shadow-sm mt-3">
       <div class="card-body">
-        <form method="post" id="form-emprestimo">
+        <form method="post" id="form-emprestimo" autocomplete="off">
           {% csrf_token %}
+
           <div class="mb-3">
-            <label class="form-label">Livro *</label>
-            <select name="livro" class="form-select" required>
-              <option value="">— selecione —</option>
-              {% for livro in livros %}
-                {% with disp=livro.exemplares_disponiveis %}
-                <option value="{{ livro.pk }}" {% if disp <= 0 %}disabled{% endif %}>
-                  {{ livro.titulo }}{% if livro.autor %} ({{ livro.autor }}){% endif %}
-                  — disp: {{ disp }}/{{ livro.total_exemplares }}
-                  {% if disp <= 0 %}[INDISPONÍVEL]{% endif %}
-                </option>
-                {% endwith %}
-              {% endfor %}
-            </select>
+            <label class="form-label" for="busca-livro">Livro *</label>
+            <div class="ac" id="ac-livro" data-url="{% url 'emprestimo_buscar_livros' %}" data-campo="livro">
+              <input type="hidden" name="livro" value="{{ livro_sel.id|default:'' }}">
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="search" id="busca-livro" class="form-control ac-busca"
+                       placeholder="Digite parte do título, chapa, tombo, ISBN ou autor…">
+              </div>
+              <div class="ac-lista list-group shadow d-none"></div>
+              <div class="ac-escolhido card border-primary mt-2 d-none">
+                <div class="card-body py-2 d-flex justify-content-between align-items-start gap-2">
+                  <div class="ac-texto small"></div>
+                  <button type="button" class="btn btn-sm btn-outline-secondary ac-trocar">Trocar</button>
+                </div>
+              </div>
+            </div>
+            <div class="form-text">Ex.: <code>sistemas operac</code>, a chapa (<code>1/027081</code>) ou o número do tombo. Com várias palavras, todas precisam aparecer.</div>
           </div>
+
           <div class="mb-3">
-            <label class="form-label">Leitor *</label>
-            <select name="leitor" class="form-select" required>
-              <option value="">— selecione —</option>
-              {% for leitor in leitores %}
-                <option value="{{ leitor.pk }}">{{ leitor.nome }} ({{ leitor.matricula }})</option>
-              {% endfor %}
-            </select>
+            <label class="form-label" for="busca-leitor">Leitor *</label>
+            <div class="ac" id="ac-leitor" data-url="{% url 'emprestimo_buscar_leitores' %}" data-campo="leitor">
+              <input type="hidden" name="leitor" value="{{ leitor_sel.id|default:'' }}">
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                <input type="search" id="busca-leitor" class="form-control ac-busca"
+                       placeholder="Digite parte do nome, matrícula ou e-mail…">
+              </div>
+              <div class="ac-lista list-group shadow d-none"></div>
+              <div class="ac-escolhido card border-primary mt-2 d-none">
+                <div class="card-body py-2 d-flex justify-content-between align-items-start gap-2">
+                  <div class="ac-texto small"></div>
+                  <button type="button" class="btn btn-sm btn-outline-secondary ac-trocar">Trocar</button>
+                </div>
+              </div>
+            </div>
           </div>
+
           <div class="mb-3">
-            <label class="form-label">Data prevista de devolução *</label>
-            <input type="date" name="data_prevista" class="form-control" required>
+            <label class="form-label" for="data_prevista">Data prevista de devolução *</label>
+            <input type="date" name="data_prevista" id="data_prevista" class="form-control"
+                   value="{{ data_prevista|default:'' }}" required>
           </div>
+          <div id="erro-form" class="alert alert-danger py-2 d-none"></div>
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary" id="btn-submit">
               Registrar Empréstimo
@@ -47,11 +73,133 @@
     </div>
   </div>
 </div>
+{{ livro_sel|json_script:"livro-sel" }}
+{{ leitor_sel|json_script:"leitor-sel" }}
 <script>
-  document.getElementById('form-emprestimo').addEventListener('submit', function () {
+(function () {
+  const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const formatos = {
+    livro: {
+      item: l => {
+        const disp = l.disponiveis > 0
+          ? `<span class="badge bg-success">disp. ${l.disponiveis}/${l.total}</span>`
+          : `<span class="badge bg-danger">indisponível 0/${l.total}</span>`;
+        const extras = [l.autor, l.chapa && `Chapa: ${l.chapa}`, l.tombo && `Tombo: ${l.tombo}`, l.isbn && `ISBN: ${l.isbn}`]
+          .filter(Boolean).map(esc).join(' · ');
+        return `<div class="d-flex justify-content-between gap-2"><strong>${esc(l.titulo)}</strong>${disp}</div>
+                <div class="small text-muted">${extras}</div>`;
+      },
+      habilitado: l => l.disponiveis > 0,
+    },
+    leitor: {
+      item: l => `<strong>${esc(l.nome)}</strong> <span class="small text-muted">matrícula ${esc(l.matricula)}</span>`,
+      habilitado: () => true,
+    },
+  };
+
+  function autocomplete(raiz, inicial) {
+    const fmt = formatos[raiz.dataset.campo];
+    const oculto = raiz.querySelector('input[type=hidden]');
+    const busca = raiz.querySelector('.ac-busca');
+    const lista = raiz.querySelector('.ac-lista');
+    const escolhido = raiz.querySelector('.ac-escolhido');
+    let itens = [], ativo = -1, timer = null, ultimaBusca = 0;
+
+    function fechar() { lista.classList.add('d-none'); ativo = -1; }
+
+    function escolher(item) {
+      oculto.value = item.id;
+      escolhido.querySelector('.ac-texto').innerHTML = fmt.item(item);
+      escolhido.classList.remove('d-none');
+      busca.closest('.input-group').classList.add('d-none');
+      fechar();
+    }
+
+    function trocar() {
+      oculto.value = '';
+      escolhido.classList.add('d-none');
+      busca.closest('.input-group').classList.remove('d-none');
+      busca.focus(); busca.select();
+      if (busca.value.trim().length >= 2) pesquisar();
+    }
+
+    function marcar(i) {
+      const els = lista.querySelectorAll('.list-group-item');
+      els.forEach(e => e.classList.remove('ativo'));
+      ativo = i;
+      if (els[i]) { els[i].classList.add('ativo'); els[i].scrollIntoView({ block: 'nearest' }); }
+    }
+
+    function mostrar(resultados, termo) {
+      itens = resultados;
+      if (!resultados.length) {
+        lista.innerHTML = `<div class="list-group-item text-muted small">Nada encontrado para “${esc(termo)}”.</div>`;
+      } else {
+        lista.innerHTML = resultados.map((r, i) =>
+          `<div class="list-group-item list-group-item-action${fmt.habilitado(r) ? '' : ' disabled opacity-75'}" data-i="${i}">${fmt.item(r)}</div>`
+        ).join('') + (resultados.length >= 25
+          ? '<div class="list-group-item small text-muted">Mostrando os 25 primeiros — digite mais para refinar.</div>' : '');
+      }
+      lista.classList.remove('d-none');
+      ativo = -1;
+    }
+
+    function pesquisar() {
+      const termo = busca.value.trim();
+      if (termo.length < 2) { fechar(); return; }
+      const n = ++ultimaBusca;
+      lista.innerHTML = '<div class="list-group-item small text-muted">Buscando…</div>';
+      lista.classList.remove('d-none');
+      fetch(`${raiz.dataset.url}?q=${encodeURIComponent(termo)}`)
+        .then(r => r.json())
+        .then(d => { if (n === ultimaBusca) mostrar(d.resultados || [], termo); })
+        .catch(() => { if (n === ultimaBusca) lista.innerHTML = '<div class="list-group-item small text-danger">Erro ao buscar.</div>'; });
+    }
+
+    busca.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(pesquisar, 250); });
+    busca.addEventListener('keydown', e => {
+      const visivel = !lista.classList.contains('d-none');
+      if (e.key === 'ArrowDown' && visivel) { e.preventDefault(); marcar(Math.min(ativo + 1, itens.length - 1)); }
+      else if (e.key === 'ArrowUp' && visivel) { e.preventDefault(); marcar(Math.max(ativo - 1, 0)); }
+      else if (e.key === 'Enter') {
+        e.preventDefault();  // Enter na busca nunca envia o formulário
+        const i = ativo >= 0 ? ativo : (itens.length === 1 ? 0 : -1);
+        if (visivel && itens[i] && fmt.habilitado(itens[i])) escolher(itens[i]);
+      } else if (e.key === 'Escape') { fechar(); }
+    });
+    lista.addEventListener('mousedown', e => {
+      const el = e.target.closest('.list-group-item[data-i]');
+      if (!el) return;
+      e.preventDefault();
+      const item = itens[+el.dataset.i];
+      if (fmt.habilitado(item)) escolher(item);
+    });
+    busca.addEventListener('blur', () => setTimeout(fechar, 150));
+    busca.addEventListener('focus', () => { if (itens.length && busca.value.trim().length >= 2) lista.classList.remove('d-none'); });
+    raiz.querySelector('.ac-trocar').addEventListener('click', trocar);
+
+    if (inicial) escolher(inicial);
+  }
+
+  autocomplete(document.getElementById('ac-livro'), JSON.parse(document.getElementById('livro-sel').textContent));
+  autocomplete(document.getElementById('ac-leitor'), JSON.parse(document.getElementById('leitor-sel').textContent));
+
+  document.getElementById('form-emprestimo').addEventListener('submit', function (e) {
+    const faltando = [];
+    if (!this.livro.value) faltando.push('o livro');
+    if (!this.leitor.value) faltando.push('o leitor');
+    const erro = document.getElementById('erro-form');
+    if (faltando.length) {
+      e.preventDefault();
+      erro.textContent = 'Escolha ' + faltando.join(' e ') + ' na lista de resultados da busca.';
+      erro.classList.remove('d-none');
+      return;
+    }
     const btn = document.getElementById('btn-submit');
     btn.disabled = true;
     btn.textContent = 'Registrando…';
   });
+})();
 </script>
 {% endblock %}

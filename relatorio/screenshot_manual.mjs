@@ -44,19 +44,36 @@ await shot('05_livro_detalhe');
 
 // 5. Cadastro de livro com busca por ISBN
 await ir('/livros/novo/');
-await shot('06_livro_novo');
+await page.type('#id_isbn', '9788576082675');
+await page.keyboard.press('Enter');
+await page.waitForFunction(() => /preenchidos|Nenhum|Erro/.test(document.getElementById('isbn_status').textContent), { timeout: 60000 });
+await page.waitForFunction(() => { const i = document.getElementById('capa_preview'); return i.complete && i.naturalWidth > 0; }, { timeout: 30000 }).catch(() => {});
+// avisos de cota/limite das fontes são do ambiente local (sem chave do Google)
+await page.$eval('#isbn_status', e => { e.textContent = e.textContent.replace(/ Atenção:.*$/, ''); e.style.color = '#198754'; });
+await shot('06_livro_novo', { fullPage: true });
 
 // 6. Leitores
 await ir('/leitores/');
 await shot('07_leitores');
 
 // 7. Novo empréstimo (preenchido) e lista após registrar
+// Livro e leitor são escolhidos por busca incremental (digita → lista → Enter)
+const escolher = async (campo, termo) => {
+  await page.click(`#busca-${campo}`, { clickCount: 3 });
+  await page.type(`#busca-${campo}`, termo);
+  await page.waitForSelector(`#ac-${campo} .ac-lista .list-group-item[data-i]:not(.disabled)`);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+};
 await ir('/emprestimos/novo/');
-const livroVal = await page.$eval('select[name=livro]', s =>
-  [...s.options].find(o => /SISTEMAS OPERACIONAIS/i.test(o.textContent))?.value || s.options[1].value);
-await page.select('select[name=livro]', livroVal);
-const leitorVal = await page.$eval('select[name=leitor]', s => s.options[1].value);
-await page.select('select[name=leitor]', leitorVal);
+await page.type('#busca-livro', 'sistemas operac');
+await page.waitForSelector('#ac-livro .ac-lista .list-group-item[data-i]');
+await shot('08a_emprestimo_busca');
+await page.keyboard.press('ArrowDown');
+await page.keyboard.press('Enter');
+const livroVal = await page.$eval('input[name=livro]', e => e.value);
+await escolher('leitor', 'silva');
+const leitorVal = await page.$eval('input[name=leitor]', e => e.value);
 await page.$eval('input[name=data_prevista]', el => { el.value = '2026-11-28'; });
 await shot('08_emprestimo_novo');
 // (o menu também tem um <form> de logout; clicar no botão pelo texto)
@@ -71,9 +88,10 @@ await shot('10_devolucao');
 
 // 8b. Empréstimo em atraso: cria um com data prevista no passado,
 // fotografa a lista filtrada, a renovação e a cobrança, e depois devolve.
+// reaproveita o livro e o leitor escolhidos acima (campos ocultos do formulário)
 await ir('/emprestimos/novo/');
-await page.select('select[name=livro]', livroVal);
-await page.select('select[name=leitor]', leitorVal);
+await page.$eval('input[name=livro]', (e, v) => { e.value = v; }, livroVal);
+await page.$eval('input[name=leitor]', (e, v) => { e.value = v; }, leitorVal);
 await page.$eval('input[name=data_prevista]', el => { el.value = '2026-11-09'; });
 const [btn2] = await page.$$('xpath/.//button[contains(., "Registrar Empréstimo")]');
 await Promise.all([btn2.click(), page.waitForNavigation({ waitUntil: 'networkidle2' })]);

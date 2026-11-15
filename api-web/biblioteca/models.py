@@ -87,7 +87,7 @@ class Emprestimo(models.Model):
     data_prevista = models.DateField()
     data_devolucao = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="ativo")
-    cobrancas = models.PositiveIntegerField("e-mails de cobrança enviados", default=0)
+    cobrancas = models.PositiveIntegerField("e-mails de cobrança enviados", default=0, db_default=0)
     ultima_cobranca = models.DateTimeField("última cobrança", null=True, blank=True)
 
     class Meta:

@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
-from django.db.models import F
+from django.db.models import Count, F, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -448,11 +448,75 @@ def emprestimo_list(request):
     })
 
 
+# ─── Busca incremental (autocomplete) do formulário de empréstimo ──────────
+
+def _filtro_palavras(q, campos):
+    """Cada palavra digitada precisa aparecer (parcialmente) em algum dos campos."""
+    filtro = Q()
+    for palavra in q.split()[:8]:
+        alguma = Q()
+        for campo in campos:
+            alguma |= Q(**{f"{campo}__icontains": palavra})
+        filtro &= alguma
+    return filtro
+
+
+def _livro_json(livro):
+    disp = livro.total_exemplares - livro.ativos
+    return {
+        "id": livro.pk,
+        "titulo": livro.titulo,
+        "autor": livro.autor.nome if livro.autor else "",
+        "chapa": livro.chapa or "",
+        "tombo": " / ".join(dict.fromkeys(t for t in (livro.tombo_inicial, livro.tombo_exemplar) if t)),
+        "isbn": livro.isbn or "",
+        "disponiveis": disp,
+        "total": livro.total_exemplares,
+    }
+
+
+def _livros_com_disponibilidade():
+    return Livro.objects.select_related("autor").annotate(
+        ativos=Count("emprestimos", filter=Q(emprestimos__status="ativo")))
+
+
+@staff_required
+def emprestimo_buscar_livros(request):
+    q = request.GET.get("q", "").strip()
+    if len(q) < 2:
+        return JsonResponse({"resultados": []})
+    qs = (_livros_com_disponibilidade()
+          .filter(_filtro_palavras(q, ("titulo", "chapa", "tombo_inicial", "tombo_exemplar",
+                                       "isbn", "autor__nome")))
+          .order_by("titulo")[:25])
+    return JsonResponse({"resultados": [_livro_json(l) for l in qs]})
+
+
+@staff_required
+def emprestimo_buscar_leitores(request):
+    q = request.GET.get("q", "").strip()
+    if len(q) < 2:
+        return JsonResponse({"resultados": []})
+    qs = Leitor.objects.filter(_filtro_palavras(q, ("nome", "matricula", "email"))).order_by("nome")[:25]
+    return JsonResponse({"resultados": [
+        {"id": l.pk, "nome": l.nome, "matricula": l.matricula} for l in qs]})
+
+
+def _ctx_emprestimo(request):
+    """Mantém livro/leitor já escolhidos quando o formulário volta com erro."""
+    ctx = {"data_prevista": request.POST.get("data_prevista", "")}
+    livro_id, leitor_id = request.POST.get("livro", ""), request.POST.get("leitor", "")
+    if livro_id.isdigit():
+        livro = _livros_com_disponibilidade().filter(pk=livro_id).first()
+        ctx["livro_sel"] = _livro_json(livro) if livro else None
+    if leitor_id.isdigit():
+        ctx["leitor_sel"] = Leitor.objects.filter(pk=leitor_id).values("id", "nome", "matricula").first()
+    return ctx
+
+
 @staff_required
 def emprestimo_create(request):
     _atualizar_atrasos()
-    livros = Livro.objects.select_related("autor").order_by("titulo")
-    leitores = Leitor.objects.order_by("nome")
     if request.method == "POST":
         livro_id = request.POST.get("livro")
         leitor_id = request.POST.get("leitor")
@@ -468,10 +532,7 @@ def emprestimo_create(request):
         if erros:
             for e in erros:
                 messages.error(request, e)
-            return render(request, "biblioteca/emprestimo_form.html", {
-                "livros": livros,
-                "leitores": leitores,
-            })
+            return render(request, "biblioteca/emprestimo_form.html", _ctx_emprestimo(request))
 
         # ── Verifica disponibilidade via gRPC ─────────────────────────────
         grpc_offline = False
@@ -482,19 +543,13 @@ def emprestimo_create(request):
                     request,
                     f'[gRPC] Não há exemplares disponíveis de "{disp["titulo"]}".',
                 )
-                return render(request, "biblioteca/emprestimo_form.html", {
-                    "livros": livros,
-                    "leitores": leitores,
-                })
+                return render(request, "biblioteca/emprestimo_form.html", _ctx_emprestimo(request))
         except ConnectionError:
             grpc_offline = True
             livro = get_object_or_404(Livro, pk=livro_id)
             if livro.exemplares_disponiveis <= 0:
                 messages.error(request, f'Não há exemplares disponíveis de "{livro.titulo}".')
-                return render(request, "biblioteca/emprestimo_form.html", {
-                    "livros": livros,
-                    "leitores": leitores,
-                })
+                return render(request, "biblioteca/emprestimo_form.html", _ctx_emprestimo(request))
 
         # ── Registra o empréstimo via gRPC (ou localmente se offline) ─────
         if grpc_offline:
@@ -529,20 +584,14 @@ def emprestimo_create(request):
                 return redirect("emprestimo_list")
         except ConnectionError:
             messages.error(request, "Serviço gRPC ficou indisponível durante o registro. Tente novamente.")
-            return render(request, "biblioteca/emprestimo_form.html", {
-                "livros": livros,
-                "leitores": leitores,
-            })
+            return render(request, "biblioteca/emprestimo_form.html", _ctx_emprestimo(request))
         nome_op = request.user.get_full_name() or request.user.username
         livro_emp = get_object_or_404(Livro, pk=livro_id)
         leitor_emp = get_object_or_404(Leitor, pk=leitor_id)
         _log(request, "emprestimo", f'Usuário "{nome_op}" registrou empréstimo de "{livro_emp.titulo}" para {leitor_emp.nome}.')
         return redirect("emprestimo_list")
 
-    return render(request, "biblioteca/emprestimo_form.html", {
-        "livros": livros,
-        "leitores": leitores,
-    })
+    return render(request, "biblioteca/emprestimo_form.html", {})
 
 
 @staff_required

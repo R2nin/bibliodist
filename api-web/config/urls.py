@@ -46,6 +46,8 @@ urlpatterns = [
     # Empréstimos
     path("emprestimos/", views.emprestimo_list, name="emprestimo_list"),
     path("emprestimos/novo/", views.emprestimo_create, name="emprestimo_create"),
+    path("emprestimos/buscar-livros/", views.emprestimo_buscar_livros, name="emprestimo_buscar_livros"),
+    path("emprestimos/buscar-leitores/", views.emprestimo_buscar_leitores, name="emprestimo_buscar_leitores"),
     path("emprestimos/<int:pk>/devolver/", views.emprestimo_devolver, name="emprestimo_devolver"),
     path("emprestimos/<int:pk>/renovar/", views.emprestimo_renovar, name="emprestimo_renovar"),
     path("emprestimos/<int:pk>/cobrar/", views.emprestimo_cobrar, name="emprestimo_cobrar"),

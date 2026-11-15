@@ -590,7 +590,11 @@ Clicando no título, abre-se a ficha do livro com tombo, grupo/chapa, data de aq
 
 ### 9.4 Cadastrar um livro
 
-Em **Livros → + Novo Livro**, preencha o título e os demais dados. Informando o **ISBN** e clicando em **Buscar**, o sistema consulta o Google Books / Open Library e preenche título, ano e resumo automaticamente.
+Em **Livros → + Novo Livro**, preencha o título e os demais dados. Informando o **ISBN** e clicando em **Buscar** (ou teclando Enter), o sistema consulta o **Google Books**, o **isbnsearch.org** e o **Open Library**, nessa ordem, e preenche título, ano, editora, data de publicação, resumo, **capa** e **nota média** com o que encontrar. A mensagem abaixo do campo mostra de quais fontes vieram os dados.
+
+O mesmo ISBN pode ser cadastrado mais de uma vez (vários exemplares com chapas e tombos diferentes): a busca avisa quantos registros já existem e o quadro **Acervo / Patrimônio** recebe a data de aquisição, o grupo/chapa e os tombos inicial e do exemplar. Se o tombo inicial já estiver em outro livro, o sistema avisa, sem bloquear.
+
+Para a busca no Google Books funcionar bem, a variável `GOOGLE_BOOKS_API_KEY` (chave gratuita do Google Cloud, com a Books API ativada) deve estar configurada no Coolify; sem ela, o Google usa uma cota compartilhada que costuma se esgotar.
 
 ![Cadastro de livro](screenshots/manual/06_livro_novo.png)
 
@@ -602,9 +606,11 @@ Em **Leitores → + Novo Leitor**, cadastre nome, e-mail e matrícula. Só leito
 
 ### 9.6 Registrar um empréstimo
 
-Em **Empréstimos → + Novo Empréstimo**, escolha o livro (o seletor mostra a disponibilidade), o leitor e a data prevista de devolução, e clique em **Registrar Empréstimo**.
+Em **Empréstimos → + Novo Empréstimo**, digite no campo **Livro** parte do título, a chapa, o tombo, o ISBN ou o autor: a lista mostra os resultados com a disponibilidade de cada um (livros sem exemplar disponível aparecem em vermelho e não podem ser escolhidos). Com várias palavras, todas precisam aparecer, por exemplo `sistemas operac`. Escolha com o mouse ou com as setas e Enter. O campo **Leitor** funciona do mesmo jeito (nome, matrícula ou e-mail). Informe a data prevista de devolução e clique em **Registrar Empréstimo**.
 
-![Novo empréstimo](screenshots/manual/08_emprestimo_novo.png)
+![Busca do livro no novo empréstimo](screenshots/manual/08a_emprestimo_busca.png)
+
+![Novo empréstimo preenchido](screenshots/manual/08_emprestimo_novo.png)
 
 Por trás dessa tela atuam os serviços distribuídos: o Django consulta a disponibilidade e registra o empréstimo no **servidor gRPC**, que publica uma mensagem no **RabbitMQ**; o **worker** consome a mensagem e gera a notificação ao leitor. A mensagem *"registrado com sucesso via gRPC"* confirma o caminho completo. Se o gRPC estiver fora do ar, o empréstimo é gravado em **modo local** e o fato fica registrado nos logs.
 

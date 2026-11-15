@@ -587,3 +587,47 @@ class LivroMesmoIsbnTests(TestCase):
         with _fake_http(isbnsearch=ISBNSEARCH_HTML):
             r = self.client.get(reverse("livro_buscar_isbn"), {"isbn": "978-85-352-3699-6"})
         self.assertEqual(r.json()["ja_cadastrados"], 1)
+
+
+class EmprestimoAutocompleteTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_user("bib5", password="x", is_staff=True))
+        self.so = Livro.objects.create(titulo="SISTEMAS OPERACIONAIS MODERNOS", chapa="005.43 T113s",
+                                       tombo_inicial="4521", total_exemplares=1)
+        Livro.objects.create(titulo="SISTEMAS DE INFORMAÇÃO", tombo_inicial="777", total_exemplares=2)
+        self.leitor = Leitor.objects.create(nome="Maria Souza", email="m@x.com", matricula="2024001")
+
+    def buscar(self, q, rota="emprestimo_buscar_livros"):
+        return self.client.get(reverse(rota), {"q": q}).json()["resultados"]
+
+    def test_palavras_parciais_em_qualquer_campo(self):
+        self.assertEqual([r["titulo"] for r in self.buscar("sist operac")], ["SISTEMAS OPERACIONAIS MODERNOS"])
+        self.assertEqual(len(self.buscar("sistemas")), 2)
+        self.assertEqual(self.buscar("T113")[0]["id"], self.so.pk)     # chapa
+        self.assertEqual(self.buscar("4521")[0]["chapa"], "005.43 T113s")  # tombo
+        self.assertEqual(self.buscar("s"), [])                          # mínimo 2 letras
+
+    def test_disponibilidade_no_resultado(self):
+        Emprestimo.objects.create(livro=self.so, leitor=self.leitor, status="ativo",
+                                  data_prevista=_dt.date.today() + _dt.timedelta(days=7))
+        r = self.buscar("operacionais")[0]
+        self.assertEqual((r["disponiveis"], r["total"]), (0, 1))
+
+    def test_busca_leitor(self):
+        self.assertEqual(self.buscar("souza", "emprestimo_buscar_leitores")[0]["matricula"], "2024001")
+        self.assertEqual(self.buscar("2024", "emprestimo_buscar_leitores")[0]["nome"], "Maria Souza")
+
+    def test_formulario_nao_lista_o_acervo_inteiro(self):
+        r = self.client.get(reverse("emprestimo_create"))
+        self.assertNotContains(r, "SISTEMAS OPERACIONAIS MODERNOS")
+        self.assertContains(r, 'id="busca-livro"')
+
+    def test_erro_mantem_livro_escolhido(self):
+        r = self.client.post(reverse("emprestimo_create"), {"livro": self.so.pk, "leitor": ""})
+        self.assertContains(r, "Leitor é obrigatório")
+        self.assertContains(r, "005.43 T113s")  # livro escolhido volta no json_script
+
+    def test_comum_nao_acessa(self):
+        self.client.force_login(User.objects.create_user("comum5", password="x"))
+        r = self.client.get(reverse("emprestimo_buscar_livros"), {"q": "sistemas"})
+        self.assertNotEqual(r.status_code, 200)
