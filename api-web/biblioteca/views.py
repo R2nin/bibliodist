@@ -49,6 +49,10 @@ def livro_buscar_isbn(request):
         if avisos:
             erro += " Atenção: " + "; ".join(dict.fromkeys(avisos)) + "."
         return JsonResponse({"erro": erro}, status=404)
+    variantes = {isbn, request.GET.get("isbn", "").strip()}
+    if len(isbn) == 10:
+        variantes.add(isbn_lookup.isbn10_para_13(isbn))
+    dados["ja_cadastrados"] = Livro.objects.filter(isbn__in=[v for v in variantes if v]).count()
     return JsonResponse(dados)
 
 
@@ -243,6 +247,33 @@ def _metadados_livro(post):
     }
 
 
+def _acervo_livro(post):
+    """Campos de patrimônio: data de aquisição, chapa e tombos."""
+    data = post.get("data_aquisicao", "").strip()
+    try:
+        data = datetime.date.fromisoformat(data) if data else None
+    except ValueError:
+        data = None
+    return {
+        "data_aquisicao": data,
+        "chapa": post.get("chapa", "").strip()[:500] or None,
+        "tombo_inicial": post.get("tombo_inicial", "").strip()[:20] or None,
+        "tombo_exemplar": post.get("tombo_exemplar", "").strip()[:20] or None,
+    }
+
+
+def _avisos_duplicidade(request, livro):
+    """Avisa (sem bloquear) sobre ISBN já usado e tombo repetido."""
+    outros = Livro.objects.exclude(pk=livro.pk)
+    if livro.isbn:
+        n = outros.filter(isbn=livro.isbn).count()
+        if n:
+            messages.info(request, f"Há outro{'s' if n > 1 else ''} {n} registro{'s' if n > 1 else ''} "
+                                   f"com o ISBN {livro.isbn} no acervo.")
+    if livro.tombo_inicial and outros.filter(tombo_inicial=livro.tombo_inicial).exists():
+        messages.warning(request, f"Atenção: o tombo {livro.tombo_inicial} já está em outro livro.")
+
+
 @staff_required
 def livro_create(request):
     autores = Autor.objects.all()
@@ -259,8 +290,6 @@ def livro_create(request):
 
         if not titulo:
             erros.append("Título é obrigatório.")
-        if isbn and Livro.objects.filter(isbn=isbn).exists():
-            erros.append("Já existe um livro com este ISBN.")
 
         if erros:
             for e in erros:
@@ -274,9 +303,11 @@ def livro_create(request):
                 total_exemplares=int(total) if total.isdigit() else 1,
                 descricao=descricao or None,
                 **_metadados_livro(request.POST),
+                **_acervo_livro(request.POST),
             )
             livro.categorias.set(categorias_ids)
             messages.success(request, "Livro criado com sucesso.")
+            _avisos_duplicidade(request, livro)
             return redirect("livro_list")
 
     return render(request, "biblioteca/livro_form.html", {
@@ -293,13 +324,13 @@ def livro_edit(request, pk):
     categorias = Categoria.objects.all()
     if request.method == "POST":
         livro.titulo = request.POST.get("titulo", livro.titulo).strip()
-        livro.isbn = request.POST.get("isbn", livro.isbn).strip()
+        livro.isbn = request.POST.get("isbn", livro.isbn or "").strip() or None
         ano = request.POST.get("ano", "").strip()
         if ano.isdigit():
             livro.ano = int(ano)
         livro.autor_id = request.POST.get("autor", livro.autor_id)
         livro.descricao = request.POST.get("descricao", "").strip() or None
-        for campo, valor in _metadados_livro(request.POST).items():
+        for campo, valor in {**_metadados_livro(request.POST), **_acervo_livro(request.POST)}.items():
             setattr(livro, campo, valor)
         total = request.POST.get("total_exemplares", "").strip()
         if total.isdigit():
@@ -307,6 +338,7 @@ def livro_edit(request, pk):
         livro.save()
         livro.categorias.set(request.POST.getlist("categorias"))
         messages.success(request, "Livro atualizado.")
+        _avisos_duplicidade(request, livro)
         return redirect("livro_list")
     return render(request, "biblioteca/livro_form.html", {
         "titulo_pag": "Editar Livro",

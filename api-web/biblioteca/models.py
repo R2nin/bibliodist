@@ -28,7 +28,8 @@ class Categoria(models.Model):
 
 class Livro(models.Model):
     titulo = models.CharField(max_length=500)
-    isbn = models.CharField(max_length=20, unique=True, null=True, blank=True)
+    # não é único: a biblioteca pode ter vários registros do mesmo ISBN (chapas/tombos diferentes)
+    isbn = models.CharField(max_length=20, null=True, blank=True, db_index=True)
     ano = models.PositiveIntegerField(null=True, blank=True)
     autor = models.ForeignKey(Autor, on_delete=models.SET_NULL, null=True, blank=True, related_name="livros")
     categorias = models.ManyToManyField(Categoria, blank=True, related_name="livros")

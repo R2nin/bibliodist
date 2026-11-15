@@ -538,3 +538,52 @@ class LivroIsbnViewTests(TestCase):
         livro.refresh_from_db()
         self.assertEqual(livro.capa_url, "")
         self.assertIsNone(livro.nota)
+
+
+class LivroMesmoIsbnTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.client.force_login(User.objects.create_user("bib4", password="x", is_staff=True))
+
+    def _criar(self, **extra):
+        dados = {"titulo": "Algoritmos", "isbn": "9788535236996", "total_exemplares": "1"}
+        dados.update(extra)
+        return self.client.post(reverse("livro_create"), dados, follow=True)
+
+    def test_mesmo_isbn_com_chapa_e_tombos_diferentes(self):
+        self._criar(chapa="005.1 C811a", tombo_inicial="1001", tombo_exemplar="1001",
+                    data_aquisicao="2024-03-15")
+        r = self._criar(chapa="005.1 C811a ex.2", tombo_inicial="1002", tombo_exemplar="1002")
+        self.assertEqual(Livro.objects.filter(isbn="9788535236996").count(), 2)
+        self.assertContains(r, "Há outro 1 registro com o ISBN 9788535236996")
+        self.assertNotContains(r, "tombo 1002 já está")
+        primeiro = Livro.objects.get(tombo_inicial="1001")
+        self.assertEqual(primeiro.data_aquisicao, _dt.date(2024, 3, 15))
+        self.assertEqual(primeiro.chapa, "005.1 C811a")
+        self.assertEqual(primeiro.tombo_exemplar, "1001")
+
+    def test_tombo_repetido_avisa_sem_bloquear(self):
+        self._criar(tombo_inicial="2001")
+        r = self._criar(tombo_inicial="2001")
+        self.assertEqual(Livro.objects.filter(tombo_inicial="2001").count(), 2)
+        self.assertContains(r, "o tombo 2001 já está em outro livro")
+
+    def test_editar_salva_campos_de_acervo(self):
+        self._criar()
+        livro = Livro.objects.get()
+        self.client.post(reverse("livro_edit", args=[livro.pk]), {
+            "titulo": "Algoritmos", "isbn": "", "data_aquisicao": "2025-01-02",
+            "chapa": "G1", "tombo_inicial": "3001", "tombo_exemplar": "3005",
+        })
+        livro.refresh_from_db()
+        self.assertIsNone(livro.isbn)
+        self.assertEqual((livro.chapa, livro.tombo_inicial, livro.tombo_exemplar), ("G1", "3001", "3005"))
+        self.assertEqual(livro.data_aquisicao, _dt.date(2025, 1, 2))
+        r = self.client.get(reverse("livro_edit", args=[livro.pk]))
+        self.assertContains(r, 'value="2025-01-02"')
+
+    def test_busca_isbn_informa_ja_cadastrados(self):
+        self._criar()
+        with _fake_http(isbnsearch=ISBNSEARCH_HTML):
+            r = self.client.get(reverse("livro_buscar_isbn"), {"isbn": "978-85-352-3699-6"})
+        self.assertEqual(r.json()["ja_cadastrados"], 1)

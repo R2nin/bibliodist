@@ -98,6 +98,33 @@
               </div>
             </div>
           </div>
+          <fieldset class="border rounded px-3 pt-2 mb-3">
+            <legend class="float-none w-auto px-2 fs-6 fw-semibold mb-0">Acervo / Patrimônio</legend>
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <label class="form-label" for="id_data_aquisicao">Data de aquisição</label>
+                <input type="date" name="data_aquisicao" id="id_data_aquisicao" class="form-control"
+                       value="{{ obj.data_aquisicao|date:'Y-m-d' }}">
+              </div>
+              <div class="col-md-8 mb-3">
+                <label class="form-label" for="id_chapa">Grupo/Chapa</label>
+                <input type="text" name="chapa" id="id_chapa" class="form-control" maxlength="500"
+                       value="{{ obj.chapa|default:'' }}">
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label" for="id_tombo_inicial">Tombo inicial</label>
+                <input type="text" name="tombo_inicial" id="id_tombo_inicial" class="form-control" maxlength="20"
+                       value="{{ obj.tombo_inicial|default:'' }}">
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label" for="id_tombo_exemplar">Tombo exemplar</label>
+                <input type="text" name="tombo_exemplar" id="id_tombo_exemplar" class="form-control" maxlength="20"
+                       value="{{ obj.tombo_exemplar|default:'' }}">
+              </div>
+            </div>
+          </fieldset>
           <div class="mb-4">
             <label class="form-label">Descrição / Resumo</label>
             <textarea name="descricao" id="id_descricao" class="form-control" rows="5"
@@ -181,6 +208,9 @@ document.getElementById('btn_buscar_isbn').addEventListener('click', function ()
       status.textContent = 'Dados preenchidos' + (d.fonte ? ` (fonte: ${d.fonte})` : '') +
         (faltando.length ? ` — sem ${faltando.join(', ')} nas fontes consultadas` : '') + '.';
       status.style.color = '#198754';
+      if (d.ja_cadastrados) {
+        status.textContent += ` Já existe${d.ja_cadastrados > 1 ? 'm' : ''} ${d.ja_cadastrados} registro${d.ja_cadastrados > 1 ? 's' : ''} com este ISBN no acervo — informe chapa e tombos deste exemplar.`;
+      }
       if (d.avisos && d.avisos.length) {
         status.textContent += ' Atenção: ' + d.avisos.join('; ') + '.';
         status.style.color = '#b26a00';

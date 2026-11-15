@@ -121,15 +121,17 @@ class Command(BaseCommand):
         ]
         livros = {}
         for d in livros_data:
-            obj, created = Livro.objects.get_or_create(
-                isbn=d["isbn"],
-                defaults={
-                    "titulo": d["titulo"],
-                    "ano": d["ano"],
-                    "autor": autores[d["autor"]],
-                    "total_exemplares": d["total_exemplares"],
-                },
-            )
+            # ISBN não é único: reaproveita o primeiro registro, se houver
+            obj = Livro.objects.filter(isbn=d["isbn"]).order_by("pk").first()
+            created = obj is None
+            if created:
+                obj = Livro.objects.create(
+                    isbn=d["isbn"],
+                    titulo=d["titulo"],
+                    ano=d["ano"],
+                    autor=autores[d["autor"]],
+                    total_exemplares=d["total_exemplares"],
+                )
             obj.categorias.add(categorias[d["categoria"]])
             livros[d["isbn"]] = obj
             if created:
