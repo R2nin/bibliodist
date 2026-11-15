@@ -606,7 +606,7 @@ Em **Leitores → + Novo Leitor**, cadastre nome, e-mail e matrícula. Só leito
 
 ### 9.6 Registrar um empréstimo
 
-Em **Empréstimos → + Novo Empréstimo**, digite no campo **Livro** parte do título, a chapa, o tombo, o ISBN ou o autor: a lista mostra os resultados com a disponibilidade de cada um (livros sem exemplar disponível aparecem em vermelho e não podem ser escolhidos). Com várias palavras, todas precisam aparecer, por exemplo `sistemas operac`. Escolha com o mouse ou com as setas e Enter. O campo **Leitor** funciona do mesmo jeito (nome, matrícula ou e-mail). Informe a data prevista de devolução e clique em **Registrar Empréstimo**.
+Em **Empréstimos → + Novo Empréstimo**, digite no campo **Livro** parte do título, a chapa, o tombo, o ISBN ou o autor: a lista mostra os resultados com a disponibilidade de cada um (livros sem exemplar disponível aparecem em vermelho e não podem ser escolhidos). Com várias palavras, todas precisam aparecer, por exemplo `sistemas operac`. Escolha com o mouse ou com as setas e Enter. O campo **Leitor** funciona do mesmo jeito (nome, matrícula ou e-mail). Informe a data prevista de devolução e clique em **Registrar Empréstimo**. Com a opção **"Enviar e-mail de confirmação ao leitor"** marcada (padrão), o leitor recebe um e-mail com o livro, a chapa, o tombo, a data do empréstimo e a **data de devolução**; se o envio falhar, o empréstimo continua registrado e o sistema apenas avisa.
 
 ![Busca do livro no novo empréstimo](screenshots/manual/08a_emprestimo_busca.png)
 

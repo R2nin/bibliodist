@@ -504,7 +504,8 @@ def emprestimo_buscar_leitores(request):
 
 def _ctx_emprestimo(request):
     """Mantém livro/leitor já escolhidos quando o formulário volta com erro."""
-    ctx = {"data_prevista": request.POST.get("data_prevista", "")}
+    ctx = {"data_prevista": request.POST.get("data_prevista", ""),
+           "enviar_email": request.POST.get("enviar_email") == "1"}
     livro_id, leitor_id = request.POST.get("livro", ""), request.POST.get("leitor", "")
     if livro_id.isdigit():
         livro = _livros_com_disponibilidade().filter(pk=livro_id).first()
@@ -514,6 +515,59 @@ def _ctx_emprestimo(request):
     return ctx
 
 
+def _texto_confirmacao(emp):
+    livro = emp.livro
+    detalhes = [f"Livro: {livro.titulo}"]
+    if livro.autor:
+        detalhes.append(f"Autor: {livro.autor.nome}")
+    if livro.chapa:
+        detalhes.append(f"Chapa: {livro.chapa}")
+    if livro.tombo_inicial:
+        detalhes.append(f"Tombo: {livro.tombo_inicial}")
+    detalhes += [
+        f"Data do empréstimo: {emp.data_emprestimo:%d/%m/%Y}",
+        f"Devolver até: {emp.data_prevista:%d/%m/%Y}",
+    ]
+    assunto = f'BiblioDist — empréstimo de "{livro.titulo}" (devolver até {emp.data_prevista:%d/%m/%Y})'
+    corpo = (
+        f"Olá, {emp.leitor.nome}.\n\n"
+        "Seu empréstimo foi registrado na biblioteca:\n\n"
+        + "\n".join(f"  • {d}" for d in detalhes)
+        + "\n\nPor favor, devolva o livro até a data indicada. Se precisar de mais tempo, "
+        "procure a biblioteca para renovar o empréstimo.\n\n"
+        "Atenciosamente,\nBiblioteca — BiblioDist"
+    )
+    return assunto, corpo
+
+
+def _enviar_confirmacao_emprestimo(request, emprestimo_id):
+    """Envia ao leitor o e-mail de confirmação; falha no envio não desfaz o empréstimo."""
+    emp = (Emprestimo.objects.select_related("livro__autor", "leitor")
+           .filter(pk=emprestimo_id).first())
+    if not emp:
+        return
+    if isinstance(emp.data_prevista, str):
+        emp.data_prevista = datetime.date.fromisoformat(emp.data_prevista)
+    if not emp.leitor.email:
+        messages.warning(request, f"{emp.leitor.nome} não tem e-mail cadastrado; confirmação não enviada.")
+        return
+    assunto, corpo = _texto_confirmacao(emp)
+    try:
+        send_mail(assunto, corpo, settings.DEFAULT_FROM_EMAIL, [emp.leitor.email])
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Falha ao enviar e-mail de confirmação do empréstimo")
+        messages.warning(request, f"Empréstimo registrado, mas o e-mail de confirmação não foi enviado: {exc}")
+        return
+    nome_op = request.user.get_full_name() or request.user.username
+    _log(request, "emprestimo",
+         f'Usuário "{nome_op}" enviou confirmação do empréstimo #{emp.pk} para {emp.leitor.email} '
+         f"(devolver até {emp.data_prevista:%d/%m/%Y}).")
+    if settings.EMAIL_HOST:
+        messages.info(request, f"E-mail de confirmação enviado para {emp.leitor.email}.")
+    else:
+        messages.info(request, "SMTP não configurado: a confirmação foi gerada apenas no log do servidor.")
+
+
 @staff_required
 def emprestimo_create(request):
     _atualizar_atrasos()
@@ -521,6 +575,7 @@ def emprestimo_create(request):
         livro_id = request.POST.get("livro")
         leitor_id = request.POST.get("leitor")
         data_prevista = request.POST.get("data_prevista", "").strip()
+        enviar_email = request.POST.get("enviar_email") == "1"
         erros = []
         if not livro_id:
             erros.append("Livro é obrigatório.")
@@ -569,6 +624,8 @@ def emprestimo_create(request):
             nome_op = request.user.get_full_name() or request.user.username
             _log(request, "emprestimo", f'Usuário "{nome_op}" registrou empréstimo de "{livro.titulo}" para {emp.leitor.nome} (modo local, gRPC indisponível).')
             messages.success(request, f"Empréstimo #{emp.pk} registrado com sucesso (serviço gRPC indisponível, modo local).")
+            if enviar_email:
+                _enviar_confirmacao_emprestimo(request, emp.pk)
             return redirect("emprestimo_list")
 
         try:
@@ -589,9 +646,11 @@ def emprestimo_create(request):
         livro_emp = get_object_or_404(Livro, pk=livro_id)
         leitor_emp = get_object_or_404(Leitor, pk=leitor_id)
         _log(request, "emprestimo", f'Usuário "{nome_op}" registrou empréstimo de "{livro_emp.titulo}" para {leitor_emp.nome}.')
+        if enviar_email:
+            _enviar_confirmacao_emprestimo(request, resultado["emprestimo_id"])
         return redirect("emprestimo_list")
 
-    return render(request, "biblioteca/emprestimo_form.html", {})
+    return render(request, "biblioteca/emprestimo_form.html", {"enviar_email": True})
 
 
 @staff_required

@@ -631,3 +631,64 @@ class EmprestimoAutocompleteTests(TestCase):
         self.client.force_login(User.objects.create_user("comum5", password="x"))
         r = self.client.get(reverse("emprestimo_buscar_livros"), {"q": "sistemas"})
         self.assertNotEqual(r.status_code, 200)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend", EMAIL_HOST="smtp.teste")
+class EmprestimoConfirmacaoEmailTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_user("bib6", password="x", is_staff=True))
+        self.livro = Livro.objects.create(titulo="CÓDIGO LIMPO", chapa="1/027081", tombo_inicial="6510",
+                                          total_exemplares=2)
+        self.leitor = Leitor.objects.create(nome="Ana Paula", email="ana@x.com", matricula="231")
+        self.prevista = (_dt.date.today() + _dt.timedelta(days=14))
+
+    def _post(self, **extra):
+        dados = {"livro": self.livro.pk, "leitor": self.leitor.pk, "data_prevista": self.prevista.isoformat()}
+        dados.update(extra)
+        return self.client.post(reverse("emprestimo_create"), dados, follow=True)
+
+    def _grpc_ok(self):
+        def registrar(livro_id, leitor_id, data_prevista):
+            emp = Emprestimo.objects.create(livro_id=livro_id, leitor_id=leitor_id,
+                                            data_prevista=data_prevista, status="ativo")
+            return {"sucesso": True, "emprestimo_id": emp.pk, "mensagem": f"Empréstimo #{emp.pk} registrado via gRPC."}
+        return mock.patch.multiple(
+            "biblioteca.views.grpc_client",
+            verificar_disponibilidade=mock.Mock(return_value={"disponivel": True, "exemplares_disponiveis": 2,
+                                                              "titulo": "CÓDIGO LIMPO"}),
+            registrar_emprestimo=mock.Mock(side_effect=registrar),
+        )
+
+    def test_envia_confirmacao_via_grpc(self):
+        with self._grpc_ok():
+            r = self._post(enviar_email="1")
+        self.assertEqual(len(mail.outbox), 1)
+        m = mail.outbox[0]
+        self.assertEqual(m.to, ["ana@x.com"])
+        self.assertIn(f"devolver até {self.prevista:%d/%m/%Y}", m.subject)
+        self.assertIn(f"Devolver até: {self.prevista:%d/%m/%Y}", m.body)
+        self.assertIn("Chapa: 1/027081", m.body)
+        self.assertContains(r, "E-mail de confirmação enviado para ana@x.com")
+
+    def test_sem_marcar_nao_envia(self):
+        with self._grpc_ok():
+            self._post()
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(Emprestimo.objects.count(), 1)
+
+    @mock.patch("biblioteca.views.mq_publisher._publicar")
+    def test_envia_no_modo_local(self, _pub):
+        with mock.patch("biblioteca.views.grpc_client.verificar_disponibilidade", side_effect=ConnectionError):
+            self._post(enviar_email="1")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(f"{self.prevista:%d/%m/%Y}", mail.outbox[0].body)
+
+    def test_falha_no_envio_nao_desfaz_emprestimo(self):
+        with self._grpc_ok(), mock.patch("biblioteca.views.send_mail", side_effect=OSError("smtp fora")):
+            r = self._post(enviar_email="1")
+        self.assertEqual(Emprestimo.objects.count(), 1)
+        self.assertContains(r, "e-mail de confirmação não foi enviado")
+
+    def test_formulario_vem_marcado(self):
+        r = self.client.get(reverse("emprestimo_create"))
+        self.assertContains(r, 'value="1" id="enviar_email"\n                   checked')
