@@ -7,6 +7,9 @@
 **Aluno:** Arthur Naoto Miura  
 **RA:** 2311600029  
 **Data:** Novembro de 2026  
+**Atualizado até:** 14/11/2026, às 21:32  
+
+> **Versão do documento:** este manual descreve o sistema como estava em **14/11/2026 às 21:32**. O BiblioDist continua em desenvolvimento e pode receber melhorias depois dessa data; essas melhorias **não serão incluídas neste relatório**.
 
 > **Agradecimento:** Este trabalho contou com o auxílio do aluno **Uryel**, que colaborou colocando os arquivos no diretório correto do servidor durante a etapa de deploy no Coolify.
 
@@ -652,6 +655,6 @@ Em **Usuários → Novo Usuário**, o superadmin ou qualquer administrador cria 
 
 ---
 
-> **Observação:** Este documento reflete o estado do projeto em 14 de novembro de 2026.
+> **Observação:** Este documento reflete o estado do projeto em 14/11/2026 às 21:32. Melhorias feitas no sistema após essa data podem existir na aplicação em produção, mas não fazem parte deste relatório.
 
 *Manual elaborado como parte da avaliação da disciplina de Sistemas Operacionais II — FEMA, Novembro de 2026.*
